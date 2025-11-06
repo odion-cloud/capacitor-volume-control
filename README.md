@@ -603,6 +603,69 @@ We welcome contributions! Please see our [Contributing Guide](https://github.com
 
 This project is licensed under the MIT License - see the [LICENSE](https://github.com/odion-cloud/capacitor-volume-control/blob/main/LICENSE) file for details.
 
+## Troubleshooting
+
+### Android: Kotlin Version Incompatibility
+
+If you encounter the error:
+```
+Module was compiled with an incompatible version of Kotlin. The binary version of its metadata is 1.9.0, expected version is 1.7.1
+```
+
+**Solution**: Update your project's Kotlin version in `android/build.gradle`:
+
+```groovy
+buildscript {
+    ext.kotlin_version = '1.9.10'  // Update from older version
+    dependencies {
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+    }
+}
+```
+
+This plugin requires Kotlin 1.9.0+ and Android Gradle Plugin 7.4.2+.
+
+### iOS: Pod Name Mismatch
+
+If you're using the scoped npm package name and encounter pod installation issues:
+
+**Symptom**: Pod name in Podfile (`OdionCloudCapacitorVolumeControl`) doesn't match the podspec file name (`CapacitorVolumeControl`)
+
+**Solution**: Reference the package with an alias in `package.json`:
+
+```json
+{
+  "dependencies": {
+    "capacitor-volume-control": "npm:@odion-cloud/capacitor-volume-control@^1.0.13"
+  }
+}
+```
+
+Then run:
+```bash
+npm install
+npx cap sync ios
+```
+
+### Other Common Issues
+
+**Volume watching not working on emulators/simulators**
+- Volume watching requires physical hardware buttons
+- Test on real devices for volume button detection
+
+**Permission denied errors**
+- Ensure you've added the required permissions to your AndroidManifest.xml or Info.plist
+- Request permissions at runtime before calling volume control methods
+
+**Build errors after updating**
+- Clean your build folders:
+  ```bash
+  cd android && ./gradlew clean
+  # or
+  cd ios && rm -rf Pods && pod install
+  ```
+- Invalidate caches in Android Studio: File → Invalidate Caches → Restart
+
 ## Changelog
 
 See [CHANGELOG.md](https://github.com/odion-cloud/capacitor-volume-control/blob/main/CHANGELOG.md) for a list of changes and version history.

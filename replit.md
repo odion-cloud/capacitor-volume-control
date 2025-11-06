@@ -17,6 +17,13 @@ This is a Capacitor plugin library for advanced volume control with native Andro
 - `dist/` - Built plugin files (generated)
 
 ## Recent Changes
+- **2025-11-06**: Fixed Android Kotlin version incompatibility issue (#1)
+  - Updated Kotlin version from 1.7.10 to 1.9.10 in android/build.gradle
+  - Updated Android Gradle Plugin from 7.2.1 to 7.4.2
+  - Updated kotlin-stdlib dependency to 1.9.10
+  - Added comprehensive troubleshooting section to README
+  - Documented iOS Pod naming workaround in README and CHANGELOG
+  - Updated CHANGELOG.md with version 1.0.14 changes
 - **2025-11-06**: Initial Replit environment setup
   - Installed npm dependencies
   - Built the TypeScript library successfully
