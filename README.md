@@ -17,8 +17,9 @@ A Capacitor plugin for advanced volume control with native Android and iOS imple
 ## ⚠️ Migration Notice
 
 **v2.0+ Breaking Change:**
-- The event listener pattern (`addListener('volumeChanged', ...)`) and `event.level` are no longer supported.
-- Use only `watchVolume(options, callback)` for hardware button events. The callback receives `{ direction: 'up' | 'down' }`.
+- The callback parameter in `watchVolume(options, callback)` is no longer supported.
+- Use the event listener pattern `addListener('volumeButtonPressed', callback)` instead.
+- The callback receives `{ direction: 'up' | 'down' }`.
 
 ---
 
@@ -64,15 +65,18 @@ await VolumeControl.setVolumeLevel({ value: 0.5 });
 ### Volume Watching
 
 ```typescript
-// Use watchVolume with callback
+// First, add the event listener
+await VolumeControl.addListener('volumeButtonPressed', (event) => {
+  console.log('Volume button pressed:', event.direction); // 'up' or 'down'
+});
+
+// Then start watching
 await VolumeControl.watchVolume({
   disableSystemVolumeHandler: true, // iOS only
   suppressVolumeIndicator: true,    // Android only
-}, (event) => {
-  console.log('Volume button pressed:', event.direction);
 });
 
-// Stop watching
+// Stop watching when done
 await VolumeControl.clearWatch();
 ```
 
@@ -108,10 +112,14 @@ class VolumeService {
     if (this.isWatching) return;
 
     try {
+      // Add listener first
+      await VolumeControl.addListener('volumeButtonPressed', this.handleVolumeChange.bind(this));
+      
+      // Then start watching
       await VolumeControl.watchVolume({
         disableSystemVolumeHandler: true,
         suppressVolumeIndicator: true
-      }, this.handleVolumeChange.bind(this));
+      });
       
       this.isWatching = true;
       console.log('Started volume watching');
@@ -165,11 +173,14 @@ await volumeService.stopWatching();
 ### Android Specific
 
 ```typescript
+// Add listener
+await VolumeControl.addListener('volumeButtonPressed', (event) => {
+  console.log('Volume button pressed:', event.direction);
+});
+
 // Suppress volume indicator on Android
 await VolumeControl.watchVolume({
   suppressVolumeIndicator: true
-}, (event) => {
-  console.log('Volume button pressed:', event.direction);
 });
 
 // Control different volume types
@@ -182,11 +193,14 @@ await VolumeControl.setVolumeLevel({
 ### iOS Specific
 
 ```typescript
+// Add listener
+await VolumeControl.addListener('volumeButtonPressed', (event) => {
+  console.log('Volume button pressed:', event.direction);
+});
+
 // Disable system volume handler on iOS
 await VolumeControl.watchVolume({
   disableSystemVolumeHandler: true
-}, (event) => {
-  console.log('Volume button pressed:', event.direction);
 });
 
 // Control voice call volume
@@ -210,8 +224,8 @@ try {
 }
 
 try {
-  await VolumeControl.watchVolume({}, callback);
-  await VolumeControl.watchVolume({}, callback); // This will fail
+  await VolumeControl.watchVolume({});
+  await VolumeControl.watchVolume({}); // This will fail
 } catch (error) {
   if (error.message.includes('already been watched')) {
     console.error('Volume watching is already active');
@@ -245,13 +259,18 @@ export function useVolumeControl() {
     if (isWatching) return;
 
     try {
+      // Add listener first
+      await VolumeControl.addListener('volumeButtonPressed', (event) => {
+        console.log('Volume button pressed:', event.direction);
+        // You may want to update UI or state here
+      });
+      
+      // Then start watching
       await VolumeControl.watchVolume({
         disableSystemVolumeHandler: true,
         suppressVolumeIndicator: true
-      }, (event) => {
-        // You may want to update UI or state here
-        console.log('Volume button pressed:', event.direction);
       });
+      
       setIsWatching(true);
     } catch (error) {
       console.error('Failed to start watching:', error);
@@ -314,12 +333,17 @@ export function useVolumeControl() {
     if (isWatching.value) return;
 
     try {
+      // Add listener first
+      await VolumeControl.addListener('volumeButtonPressed', (event) => {
+        console.log('Volume button pressed:', event.direction);
+      });
+      
+      // Then start watching
       await VolumeControl.watchVolume({
         disableSystemVolumeHandler: true,
         suppressVolumeIndicator: true
-      }, (event) => {
-        console.log('Volume button pressed:', event.direction);
       });
+      
       isWatching.value = true;
     } catch (error) {
       console.error('Failed to start watching:', error);
@@ -388,13 +412,18 @@ export class VolumeService {
     if (this.isWatchingSubject.value) return;
 
     try {
+      // Add listener first
+      await VolumeControl.addListener('volumeButtonPressed', (event) => {
+        console.log('Volume button pressed:', event.direction);
+        // You may want to update with actual logic
+      });
+      
+      // Then start watching
       await VolumeControl.watchVolume({
         disableSystemVolumeHandler: true,
         suppressVolumeIndicator: true
-      }, (event) => {
-        this.volumeSubject.next(0); // You may want to update with actual logic
-        console.log('Volume button pressed:', event.direction);
       });
+      
       this.isWatchingSubject.next(true);
     } catch (error) {
       console.error('Failed to start watching:', error);
@@ -504,16 +533,26 @@ setVolumeLevel({
 // Returns: { value: number } (the new volume level)
 ```
 
-#### `watchVolume(options, callback)`
-Start watching for volume changes with hardware button detection.
+#### `watchVolume(options)`
+Start watching for volume button presses.
 
 ```typescript
 watchVolume({
   disableSystemVolumeHandler?: boolean;  // iOS: disable system UI
   suppressVolumeIndicator?: boolean;     // Android: hide volume UI
-}, callback: (event: { direction: 'up' | 'down' }) => void): Promise<string>
+}): Promise<void>
+```
 
-// Callback receives: { direction: 'up' | 'down' }
+#### `addListener(eventName, callback)`
+Listen for volume button press events.
+
+```typescript
+addListener(
+  'volumeButtonPressed',
+  callback: (event: { direction: 'up' | 'down' }) => void
+): Promise<PluginListenerHandle>
+
+// Event data: { direction: 'up' | 'down' }
 ```
 
 #### `clearWatch()`
@@ -554,8 +593,8 @@ Common errors and their solutions:
 
 ### Best Practices
 
-1. **Always clean up listeners**: Remove event listeners when components unmount
-2. **Use the callback for volume events**: Use the callback in `watchVolume()` for hardware button events
+1. **Always clean up listeners**: Remove event listeners when components unmount with `removeAllListeners()`
+2. **Add listener before watching**: Call `addListener()` before `watchVolume()` to ensure events are captured
 3. **Handle errors gracefully**: Wrap volume operations in try-catch blocks
 4. **Check watch status**: Use `isWatching()` to avoid duplicate watch calls
 5. **Test on real devices**: Volume watching requires physical hardware

@@ -48,9 +48,9 @@ export interface WatchVolumeOptions {
   suppressVolumeIndicator?: boolean;
 }
 
-export interface VolumeEvent {
+export interface VolumeButtonPressedEvent {
   /**
-   * Direction of volume change
+   * Direction of volume button press
    */
   direction: 'up' | 'down';
 }
@@ -61,8 +61,6 @@ export interface WatchStatusResult {
    */
   value: boolean;
 }
-
-export type VolumeChangeCallback = (result: VolumeEvent) => void;
 
 export interface VolumeControlPlugin {
   /**
@@ -82,13 +80,12 @@ export interface VolumeControlPlugin {
   setVolumeLevel(options: SetVolumeOptions): Promise<VolumeResult>;
 
   /**
-   * Start watching volume changes
+   * Start watching volume button presses
    * @param options Watch options
-   * @param callback Callback function for volume changes
-   * @returns Promise resolving to callback ID
+   * @returns Promise resolving when watching starts
    * @since 1.0.0
    */
-  watchVolume(options: WatchVolumeOptions, callback: VolumeChangeCallback): Promise<string>;
+  watchVolume(options: WatchVolumeOptions): Promise<void>;
 
   /**
    * Clear volume watch
@@ -103,4 +100,34 @@ export interface VolumeControlPlugin {
    * @since 1.0.0
    */
   isWatching(): Promise<WatchStatusResult>;
+
+  /**
+   * Listen to volume button press events
+   * @param eventName - Name of the event to listen for
+   * @param listenerFunc - Callback function that receives the event data
+   * @returns Promise resolving to a listener handle
+   * @since 1.0.0
+   * 
+   * @example
+   * ```typescript
+   * const listener = await VolumeControl.addListener('volumeButtonPressed', (event) => {
+   *   console.log('Volume button pressed:', event.direction);
+   * });
+   * ```
+   */
+  addListener(
+    eventName: 'volumeButtonPressed',
+    listenerFunc: (event: VolumeButtonPressedEvent) => void,
+  ): Promise<PluginListenerHandle> & PluginListenerHandle;
+
+  /**
+   * Remove all listeners for this plugin
+   * @returns Promise resolving when all listeners are removed
+   * @since 1.0.0
+   */
+  removeAllListeners(): Promise<void>;
+}
+
+export interface PluginListenerHandle {
+  remove: () => Promise<void>;
 }

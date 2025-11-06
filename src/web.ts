@@ -1,4 +1,5 @@
 import { WebPlugin } from '@capacitor/core';
+import type { PluginListenerHandle } from '@capacitor/core';
 
 import type { 
   VolumeControlPlugin, 
@@ -6,12 +7,11 @@ import type {
   SetVolumeOptions, 
   VolumeResult, 
   WatchVolumeOptions, 
-  VolumeChangeCallback, 
-  WatchStatusResult 
+  WatchStatusResult,
+  VolumeButtonPressedEvent
 } from './definitions';
 
 export class VolumeControlWeb extends WebPlugin implements VolumeControlPlugin {
-  private watchCallback?: VolumeChangeCallback;
   private isWatchingVolume = false;
   private mockVolume = 0.5;
 
@@ -41,14 +41,13 @@ export class VolumeControlWeb extends WebPlugin implements VolumeControlPlugin {
     return { value: options.value };
   }
 
-  async watchVolume(options: WatchVolumeOptions, callback: VolumeChangeCallback): Promise<string> {
+  async watchVolume(options: WatchVolumeOptions): Promise<void> {
     console.log('watchVolume called with options:', options);
     
     if (this.isWatchingVolume) {
       throw new Error('Volume buttons has already been watched');
     }
     
-    this.watchCallback = callback;
     this.isWatchingVolume = true;
     
     // Web implementation - limited volume change detection
@@ -58,14 +57,11 @@ export class VolumeControlWeb extends WebPlugin implements VolumeControlPlugin {
     // Simulate volume changes for testing (remove in production)
     if (process.env.NODE_ENV === 'development') {
       setTimeout(() => {
-        if (this.isWatchingVolume && this.watchCallback) {
-          this.watchCallback({ direction: 'up' });
+        if (this.isWatchingVolume) {
+          this.notifyListeners('volumeButtonPressed', { direction: 'up' });
         }
       }, 3000);
     }
-    
-    // Return a callback ID (mock)
-    return 'web-volume-watch-1';
   }
 
   async clearWatch(): Promise<void> {
@@ -75,11 +71,21 @@ export class VolumeControlWeb extends WebPlugin implements VolumeControlPlugin {
       throw new Error('Volume buttons has not been watched');
     }
     
-    this.watchCallback = undefined;
     this.isWatchingVolume = false;
   }
 
   async isWatching(): Promise<WatchStatusResult> {
     return { value: this.isWatchingVolume };
+  }
+
+  addListener(
+    eventName: 'volumeButtonPressed',
+    listenerFunc: (event: VolumeButtonPressedEvent) => void,
+  ): Promise<PluginListenerHandle> & PluginListenerHandle {
+    return super.addListener(eventName, listenerFunc);
+  }
+
+  async removeAllListeners(): Promise<void> {
+    return super.removeAllListeners();
   }
 }

@@ -51,38 +51,32 @@ describe('VolumeControlWeb', () => {
 
   describe('watchVolume', () => {
     it('should start watching volume changes', async () => {
-      const callback = jest.fn();
-      
-      await volumeControl.watchVolume({}, callback);
+      await volumeControl.watchVolume({});
       
       const watchStatus = await volumeControl.isWatching();
       expect(watchStatus.value).toBe(true);
     });
 
     it('should reject if already watching', async () => {
-      const callback = jest.fn();
+      await volumeControl.watchVolume({});
       
-      await volumeControl.watchVolume({}, callback);
-      
-      await expect(volumeControl.watchVolume({}, callback)).rejects.toThrow();
+      await expect(volumeControl.watchVolume({})).rejects.toThrow();
     });
 
     it('should handle watch options', async () => {
-      const callback = jest.fn();
-      
       await volumeControl.watchVolume({
         disableSystemVolumeHandler: true,
         suppressVolumeIndicator: true
-      }, callback);
+      });
       
       const watchStatus = await volumeControl.isWatching();
       expect(watchStatus.value).toBe(true);
     });
 
-    it('should add event listener for volume changes', async () => {
+    it('should add event listener for volume button presses', async () => {
       const callback = jest.fn();
       
-      const listener = await volumeControl.addListener('volumeChanged', callback);
+      const listener = await volumeControl.addListener('volumeButtonPressed', callback);
       expect(listener).toBeDefined();
       expect(typeof listener.remove).toBe('function');
     });
@@ -90,9 +84,7 @@ describe('VolumeControlWeb', () => {
 
   describe('clearWatch', () => {
     it('should clear volume watch', async () => {
-      const callback = jest.fn();
-      
-      await volumeControl.watchVolume({}, callback);
+      await volumeControl.watchVolume({});
       await volumeControl.clearWatch();
       
       const watchStatus = await volumeControl.isWatching();
@@ -107,9 +99,7 @@ describe('VolumeControlWeb', () => {
     });
 
     it('should return true when watching', async () => {
-      const callback = jest.fn();
-      
-      await volumeControl.watchVolume({}, callback);
+      await volumeControl.watchVolume({});
       
       const watchStatus = await volumeControl.isWatching();
       expect(watchStatus.value).toBe(true);
@@ -120,12 +110,12 @@ describe('VolumeControlWeb', () => {
     it('should add and remove event listeners', async () => {
       const callback = jest.fn();
       
-      const listener = await volumeControl.addListener('volumeChanged', callback);
+      const listener = await volumeControl.addListener('volumeButtonPressed', callback);
       expect(listener).toBeDefined();
       
       // Remove listener
       if (listener && typeof listener.remove === 'function') {
-        listener.remove();
+        await listener.remove();
       }
       
       // Remove all listeners
@@ -136,8 +126,8 @@ describe('VolumeControlWeb', () => {
       const callback1 = jest.fn();
       const callback2 = jest.fn();
       
-      await volumeControl.addListener('volumeChanged', callback1);
-      await volumeControl.addListener('volumeChanged', callback2);
+      await volumeControl.addListener('volumeButtonPressed', callback1);
+      await volumeControl.addListener('volumeButtonPressed', callback2);
       
       await volumeControl.removeAllListeners();
       

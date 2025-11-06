@@ -7,7 +7,6 @@ import AVFAudio
 @objc(VolumeControlPlugin)
 public class VolumeControlPlugin: CAPPlugin {
     
-    private var savedCallID: String? = nil
     private var volumeHandler: VolumeControlHandler!
     
     public override func load() {
@@ -65,19 +64,16 @@ public class VolumeControlPlugin: CAPPlugin {
         
         let disableSystemVolumeHandler = call.getBool("disableSystemVolumeHandler", false)
         
-        call.keepAlive = true
-        savedCallID = call.callbackId
-        
         volumeHandler.startHandler(disableSystemVolumeHandler)
         
         let handlerBlock: VolumeButtonBlock = { direction in
-            if let id = self.savedCallID, let savedCall = self.bridge?.savedCall(withID: id) {
-                var jsObject = JSObject()
-                jsObject["direction"] = direction
-                savedCall.resolve(jsObject)
-            }
+            var jsObject = JSObject()
+            jsObject["direction"] = direction
+            self.notifyListeners("volumeButtonPressed", data: jsObject)
         }
         volumeHandler.handlerBlock = handlerBlock
+        
+        call.resolve()
     }
     
     @objc func clearWatch(_ call: CAPPluginCall) {
@@ -86,14 +82,8 @@ public class VolumeControlPlugin: CAPPlugin {
             return
         }
         
-        if let id = savedCallID {
-            volumeHandler.stopHandler()
-            if let savedCall = bridge?.savedCall(withID: id) {
-                bridge?.releaseCall(savedCall)
-            }
-            savedCallID = nil
-            call.resolve()
-        }
+        volumeHandler.stopHandler()
+        call.resolve()
     }
     
     // MARK: - Private Methods
@@ -183,7 +173,7 @@ public class VolumeControlHandler: NSObject {
     public func stopHandler() {
         guard isStarted else { return }
         isStarted = false
-        volumeView?.isHidden = false
+        volumeView?.isHidden = true
         self.observation = nil
         NotificationCenter.default.removeObserver(self)
     }

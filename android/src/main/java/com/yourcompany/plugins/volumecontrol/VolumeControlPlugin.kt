@@ -15,7 +15,6 @@ import kotlin.math.round
 class VolumeControlPlugin : Plugin() {
     
     private lateinit var audioManager: AudioManager
-    private var savedCall: PluginCall? = null
     private var isStarted = false
     private var suppressVolumeIndicator = false
     
@@ -86,7 +85,7 @@ class VolumeControlPlugin : Plugin() {
         call.resolve(ret)
     }
     
-    @PluginMethod(returnType = PluginMethod.RETURN_CALLBACK)
+    @PluginMethod
     fun watchVolume(call: PluginCall) {
         if (isStarted) {
             call.reject("Volume buttons has already been watched")
@@ -95,18 +94,15 @@ class VolumeControlPlugin : Plugin() {
         
         suppressVolumeIndicator = call.getBoolean("suppressVolumeIndicator") ?: false
         
-        call.setKeepAlive(true)
-        savedCall = call
-        
         bridge.webView.setOnKeyListener(
             object : View.OnKeyListener {
                 override fun onKey(v: View?, keyCode: Int, event: KeyEvent?): Boolean {
                     if (keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
-                        val isKeyUp = event?.action == KeyEvent.ACTION_UP
-                        if (isKeyUp) {
+                        val isKeyDown = event?.action == KeyEvent.ACTION_DOWN
+                        if (isKeyDown) {
                             val ret = JSObject()
                             ret.put("direction", if (keyCode == KeyEvent.KEYCODE_VOLUME_UP) "up" else "down")
-                            call.resolve(ret)
+                            notifyListeners("volumeButtonPressed", ret)
                         }
                         return suppressVolumeIndicator
                     }
@@ -116,9 +112,10 @@ class VolumeControlPlugin : Plugin() {
         )
         
         isStarted = true
+        call.resolve()
     }
     
-    @PluginMethod(returnType = PluginMethod.RETURN_PROMISE)
+    @PluginMethod
     fun clearWatch(call: PluginCall) {
         if (!isStarted) {
             call.reject("Volume buttons has not been watched")
@@ -126,12 +123,6 @@ class VolumeControlPlugin : Plugin() {
         }
         
         bridge.webView.setOnKeyListener(null)
-        
-        if (savedCall != null) {
-            bridge.releaseCall(savedCall!!)
-            savedCall = null
-        }
-        
         isStarted = false
         call.resolve()
     }
