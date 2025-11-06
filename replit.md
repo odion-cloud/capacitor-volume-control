@@ -17,6 +17,17 @@ This is a Capacitor plugin library for advanced volume control with native Andro
 - `dist/` - Built plugin files (generated)
 
 ## Recent Changes
+- **2025-11-06**: BREAKING CHANGE - Fixed critical volume watching API flaw (v2.0.0)
+  - Changed from callback-based to event listener pattern using `notifyListeners()`
+  - Android: Updated to use `notifyListeners("volumeButtonPressed", ret)` instead of `call.resolve()`
+  - Android: Switched to ACTION_DOWN for more responsive button detection
+  - iOS: Updated to use `notifyListeners("volumeButtonPressed", data)` instead of `savedCall.resolve()`
+  - TypeScript: Removed callback parameter from `watchVolume()`, added `addListener('volumeButtonPressed', callback)`
+  - Web: Added explicit addListener override to match interface signature
+  - Fixed `suppressVolumeIndicator` and `disableSystemVolumeHandler` options to work correctly
+  - Volume watching now works continuously instead of stopping after first button press
+  - Updated all documentation, tests, and examples to use new API pattern
+  - Updated CHANGELOG.md with version 2.0.0 breaking changes
 - **2025-11-06**: Fixed Android Kotlin version incompatibility issue (#1)
   - Updated Kotlin version from 1.7.10 to 1.9.10 in android/build.gradle
   - Updated Android Gradle Plugin from 7.2.1 to 7.4.2
