@@ -39,7 +39,9 @@
   "author": "Kelly Igiogbe <liwizyk@gmail.com>",
   "license": "MIT",
   "dependencies": {
-    "@capacitor/core": "^5.0.0"
+    "@capacitor/core": "^5.0.0",
+    "http-server": "^14.1.1",
+    "jest-environment-jsdom": "^30.2.0"
   },
   "devDependencies": {
     "@capacitor/android": "^5.0.0",
