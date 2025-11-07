@@ -1,0 +1,1161 @@
+// musicPlayerStore.js
+import { defineStore } from 'pinia';
+import { asset } from '../../function/asset';
+import globalDatabase from '../database/global-database.js';
+import { DatabaseConfig } from '../database/database-config';
+import musicApi from '../media/musicapi';
+import browserService from '../../function/browser-service';
+import Helper from '../../function/helper';
+import axios from 'axios';
+
+export const useMusicPlayerStore = defineStore('musicPlayer', {
+  state: () => ({
+    
+    // Player state
+    musicPlayerRef: null,
+    currentSong: {
+        cover: asset('assets/gallery/defaultmusic.webp'),
+        displayName: 'Load song to play',
+        path: null,
+
+      },
+    isPlaying: false,
+    isBuffering: false,
+    isStarted: false,
+    currentTime: 0,
+    formattedCurrentTime: '00:00',
+    totalDuration: '00:00',
+    repeatMode: 'order', // or 'loop-all', 'shuffle', 'repeat-1'
+    favourite: false,
+    songPercentProgress: 0,
+    defaultGenreIndex: 0,
+    searchQuery: '',
+    searchResults: [],
+    triggerSearch: false,
+    originalPlaylist: [],
+    relatedSongs: [],
+    lastRelatedVideoId: null,
+    volume: 0.8,
+    muted: false,
+    
+    // Lyrics cache
+    lyricsCache: new Map(), // Store lyrics by song path
+    currentLyrics: null, // Current lyrics data for active song
+    
+    // Library stats (centralized)
+    stats: {
+      songs: 0,
+      folders: 0,
+      favorites: 0,
+      recentPlayed: 0,
+    },
+    
+    // Cached song lists
+    localSongs: [],
+    favoriteSongs: [],
+    recentPlayedSongs: [],
+    
+    // Loading states
+    isLoadingStats: false,
+    isLoadingLocalSongs: false,
+    isLoadingFavorites: false,
+    isLoadingRecentPlayed: false,
+    
+    // Sorting preferences - default to date descending (newest first)
+    sortBy: 'date',
+    sortDirection: 'desc',
+    
+    // Placeholder control
+    showPlaceholders: false,
+  }),
+  
+  getters: {
+    // Get songs with applied sorting
+    sortedLocalSongs() {
+      return [...this.localSongs].sort((a, b) => {
+        // Handle null/undefined cases
+        if (!a || !b) return 0;
+        
+        // Apply sorting based on the selected sort type
+        switch (this.sortBy) {
+          case 'date':
+            return this.compareDates(a, b);
+          case 'name':
+            return this.compareNames(a, b);
+          case 'size':
+            return this.compareSizes(a, b);
+          default:
+            // Default to date sorting if none specified
+            return this.compareDates(a, b);
+        }
+      });
+    },
+    
+    // Check if song is in favorites
+    isSongFavorite() {
+      return (songPath) => {
+        return this.favoriteSongs.some(song => song.path === songPath);
+      };
+    },
+
+    // Check if current lyrics are available and have content
+    hasCurrentLyrics() {
+      return this.currentLyrics !== null && this.currentLyrics.lyrics !== null;
+    }
+  },
+  
+  actions: {
+    //------------------------------------------------------
+    // DATABASE ADAPTER METHODS
+    //------------------------------------------------------
+    
+    /**
+     * Initialize the database adapter
+     * @returns {Promise<void>}
+     */
+    /**
+     * Get the global database adapter
+     * @returns {Promise<DBadapterService>}
+     */
+    async getAdapter() {
+      return await globalDatabase.getAdapter();
+    },
+    
+    // Player control actions
+    setMusicPlayerRef(ref) {
+      this.musicPlayerRef = ref;
+    },
+    setRepeatMode(mode) {
+      this.repeatMode = mode;
+    },
+    updateCurrentSong(song) {
+      this.currentSong = song;
+      // Update current lyrics when song changes (check cache first)
+      this.updateCurrentLyricsForSong(song);
+    },
+    
+    /**
+     * Update current lyrics for a song (from cache if available)
+     * @param {Object} song - The song object
+     */
+    updateCurrentLyricsForSong(song) {
+      if (!song || !song.path) {
+        this.clearCurrentLyrics();
+        return;
+      }
+      
+      // Check if we have cached lyrics for this song
+      const cachedLyrics = this.getCachedLyrics(song);
+      if (cachedLyrics) {
+        this.setCurrentLyrics(cachedLyrics);
+        console.log('Updated current lyrics from cache for:', song.displayName || song.title);
+      } else {
+        // Clear current lyrics if no cache available
+        this.clearCurrentLyrics();
+      }
+    },
+    setPlayingState(isPlaying) {
+      this.isPlaying = isPlaying;
+    },
+    setBufferingState(isBuffering) {
+      this.isBuffering = isBuffering;
+    },
+    setStartedState(isStarted) {
+      this.isStarted = isStarted;
+    },
+    updateFormattedCurrentTime(time) {
+      this.formattedCurrentTime = time;
+    },
+    updateTotalDuration(duration) {
+      this.totalDuration = duration;
+    },
+    setTriggerSearch(value) {
+      this.triggerSearch = value;
+    },
+    setOriginalPlaylist(playlist) {
+      this.originalPlaylist = [...playlist];
+    },
+    playSong() {
+      if (this.musicPlayerRef) {
+        this.musicPlayerRef.playSong();
+      }
+    },
+    pauseSong() {
+      if (this.musicPlayerRef) {
+        this.musicPlayerRef.pauseSong();
+      }
+    },
+    togglePlayPause() {
+      if (this.musicPlayerRef) {
+        this.musicPlayerRef.togglePlayPause();
+      }
+    },
+    toggleFavourite() {
+      if (this.musicPlayerRef) {
+        this.musicPlayerRef.toggleFavourite();
+      }
+    },
+    loadPlaylist(list, index) {
+      if (this.musicPlayerRef) {
+        this.musicPlayerRef.loadPlaylist(list, index);
+      }
+    },
+    loadSong(song) {
+      if (this.musicPlayerRef) {
+        this.musicPlayerRef.loadSong(song);
+      }
+    },
+    prevSong() {
+      if (this.musicPlayerRef) {
+        this.musicPlayerRef.prevSong();
+      }
+    },
+    nextSong() {
+      if (this.musicPlayerRef) {
+        this.musicPlayerRef.nextSong();
+      }
+    },
+    repeat() {
+      if (this.musicPlayerRef) {
+        this.musicPlayerRef.repeat();
+      }
+    },
+    handleSongEnd() {
+      if (this.musicPlayerRef) {
+        this.musicPlayerRef.handleSongEnd();
+      }
+    },
+    updateProgress() {
+      if (this.musicPlayerRef) {
+        this.musicPlayerRef.updateProgress();
+      }
+    },
+    songProgress(progress) {
+      this.songPercentProgress = progress;
+    },
+    seek(event) {
+      if (this.musicPlayerRef) {
+        this.musicPlayerRef.seek(event);
+      }
+    },
+    setVolume(value) {
+      this.volume = value;
+      if (this.musicPlayerRef) {
+        this.musicPlayerRef.setVolume(value);
+      }
+    },
+    // Update volume from system (hardware buttons) without triggering setVolume loop
+    updateVolumeFromSystem(value) {
+      this.volume = value;
+    },
+    setMuted(value) {
+      this.muted = value;
+      if (this.musicPlayerRef) {
+        this.musicPlayerRef.setMuted(value);
+      }
+    },
+    
+    // New actions for managing library data
+    
+    // Set sort preferences
+    setSortPreference(sortBy, direction = null) {
+      // If the same sort type is selected, toggle direction
+      if (this.sortBy === sortBy && !direction) {
+        this.sortDirection = this.sortDirection === 'desc' ? 'asc' : 'desc';
+      } else {
+        // If a new sort type is selected, update sort type and reset direction
+        this.sortBy = sortBy;
+        
+        // If direction is specified, use it, otherwise set a default
+        if (direction) {
+          this.sortDirection = direction;
+        } else {
+          // Set default direction based on sort type
+          // Date: Newest to Oldest (desc), Name: A-Z (asc), Size: Largest to Smallest (desc)
+          switch (sortBy) {
+            case 'date':
+              this.sortDirection = 'desc'; // Newest first
+              break;
+            case 'name':
+              this.sortDirection = 'asc'; // A-Z
+              break;
+            case 'size':
+              this.sortDirection = 'desc'; // Largest first
+              break;
+            default:
+              this.sortDirection = 'desc'; // Default to desc
+          }
+        }
+      }
+      
+      // Save preferences to localStorage for persistence
+      try {
+        localStorage.setItem('musicSortBy', this.sortBy);
+        localStorage.setItem('musicSortDirection', this.sortDirection);
+      } catch (error) {
+        console.error('Error saving sort preferences:', error);
+      }
+    },
+    
+    // Load all music library stats
+    async loadStats() {
+      try {
+        this.isLoadingStats = true;
+        const adapter = await this.getAdapter();
+        
+        // Get local songs count
+        if (this.localSongs.length > 0) {
+          this.stats.songs = this.localSongs.length;
+        } else {
+          const songs = await musicApi.getLocalSongs();
+          this.stats.songs = songs.length;
+        }
+        
+        // Get folders count
+        const folders = await musicApi.getMusicFolders();
+        this.stats.folders = folders.length;
+        
+        // Get favorites count
+        const { name, version } = DatabaseConfig.MusicCache;
+        const favorites = await adapter.getAllFromIndex(
+          name, version, 'playlistSongs', 'playlistId', 'favorites',
+          DatabaseConfig.MusicCache.getUpgradeFunction()
+        );
+        this.stats.favorites = favorites.length;
+        
+        // Get recent played count
+        const recentPlayed = await adapter.getAllFromIndex(
+          name, version, 'playlistSongs', 'playlistId', 'recentPlayed',
+          DatabaseConfig.MusicCache.getUpgradeFunction()
+        );
+        this.stats.recentPlayed = recentPlayed.length;
+      } catch (error) {
+        console.error('Error loading music stats:', error);
+      } finally {
+        this.isLoadingStats = false;
+      }
+    },
+    
+    // Load local songs
+    async loadLocalSongs() {
+      if (this.localSongs.length > 0) return this.localSongs;
+      
+      try {
+        this.isLoadingLocalSongs = true;
+        this.showPlaceholders = true;
+        
+        const songs = await musicApi.getLocalSongs();
+        this.localSongs = songs.filter(song => !song.isOnline);
+        
+      } catch (error) {
+        console.error('Error loading local songs:', error);
+      } finally {
+        this.isLoadingLocalSongs = false;
+        this.showPlaceholders = false;
+      }
+      
+      return this.localSongs;
+    },
+    
+    // Load favorites
+    async loadFavorites() {
+      try {
+        this.isLoadingFavorites = true;
+        this.showPlaceholders = true;
+        const adapter = await this.getAdapter();
+        
+        const { name, version } = DatabaseConfig.MusicCache;
+        
+        // Get favorites from database
+        const favorites = await adapter.getAllFromIndex(
+          name, version, 'playlistSongs', 'playlistId', 'favorites',
+          DatabaseConfig.MusicCache.getUpgradeFunction()
+        );
+        
+        // Load song details for each favorite
+        const songsWithData = await Promise.all(favorites.map(async (favourite) => {
+          try {
+            // First check if the favorite entry has stored metadata (for online songs)
+            if (favourite.songTitle && favourite.songArtist) {
+              // Use stored metadata from favorite entry (for online songs)
+              const songFromFav = {
+                id: favourite.id,
+                path: favourite.songPath,
+                displayName: favourite.songTitle,
+                artist: favourite.songArtist,
+                cover: favourite.songCover || '/assets/gallery/defaultmusic.webp',
+                duration: favourite.songDuration || 0,
+                album: favourite.songAlbum || 'Unknown Album',
+                isOnline: favourite.isOnline || false,
+                source: favourite.source || 'local',
+                webPath: favourite.webPath || null // Add webPath
+              };
+              
+              return songFromFav;
+            }
+            
+            // Fallback to localSongs database for local songs without stored metadata
+            const songData = await adapter.get(
+              name, version, 'localSongs', favourite.songPath,
+              DatabaseConfig.MusicCache.getUpgradeFunction()
+            );
+            
+            if (songData) {
+              return { 
+                ...songData, 
+                id: favourite.id,
+                webPath: songData.webPath || null // Ensure webPath is included
+              };
+            }
+            
+            // Last resort: create placeholder with whatever info we have
+            return {
+              id: favourite.id,
+              path: favourite.songPath,
+              displayName: favourite.songTitle || 'Unknown Song',
+              artist: favourite.songArtist || 'Unknown Artist',
+              cover: favourite.songCover || '/assets/gallery/defaultmusic.webp',
+              duration: favourite.songDuration || 0,
+              album: favourite.songAlbum || 'Unknown Album',
+              isOnline: favourite.isOnline || false,
+              source: favourite.source || 'unknown',
+              webPath: favourite.webPath || null // Add webPath
+            };
+          } catch (error) {
+            console.error('Error getting song data:', error);
+            return null;
+          }
+        }));
+        
+        // Filter out null values and update state
+        this.favoriteSongs = songsWithData.filter(song => song !== null);
+        
+      } catch (error) {
+        console.error('Error loading favorites:', error);
+        this.favoriteSongs = [];
+      } finally {
+        this.isLoadingFavorites = false;
+        this.showPlaceholders = false;
+      }
+      
+      return this.favoriteSongs;
+    },
+    
+    // Load recent played
+    async loadRecentPlayed() {
+      try {
+        this.isLoadingRecentPlayed = true;
+        this.showPlaceholders = true;
+        const adapter = await this.getAdapter();
+        
+        const { name, version } = DatabaseConfig.MusicCache;
+        
+        // Get recently played from database
+        const recentlyPlayed = await adapter.getAllFromIndex(
+          name, version, 'playlistSongs', 'playlistId', 'recentPlayed',
+          DatabaseConfig.MusicCache.getUpgradeFunction()
+        );
+        
+        // Sort by date added (newest first)
+        recentlyPlayed.sort((a, b) => new Date(b.dateAdded) - new Date(a.dateAdded));
+        
+        // Load song details for each entry
+        const songsWithData = await Promise.all(recentlyPlayed.map(async (recentSong) => {
+          try {
+            // First check if the recent entry has stored metadata (for online songs)
+            if (recentSong.songTitle && recentSong.songArtist) {
+              // Use stored metadata from recent entry (for online songs)
+              const songFromRecent = {
+                id: recentSong.id,
+                path: recentSong.songPath,
+                displayName: recentSong.songTitle,
+                artist: recentSong.songArtist,
+                cover: recentSong.songCover || '/assets/gallery/defaultmusic.webp',
+                duration: recentSong.songDuration || 0,
+                album: recentSong.songAlbum || 'Unknown Album',
+                isOnline: recentSong.isOnline || false,
+                source: recentSong.source || 'local',
+                dateAdded: recentSong.dateAdded,
+                webPath: recentSong.webPath || null // Add webPath
+              };
+              
+              return songFromRecent;
+            }
+            
+            // Fallback to localSongs database for local songs without stored metadata
+            const songData = await adapter.get(
+              name, version, 'localSongs', recentSong.songPath,
+              DatabaseConfig.MusicCache.getUpgradeFunction()
+            );
+            
+            if (songData) {
+              return { 
+                ...songData, 
+                id: recentSong.id, 
+                dateAdded: recentSong.dateAdded,
+                webPath: songData.webPath || null // Ensure webPath is included
+              };
+            }
+            
+            // Last resort: create placeholder with whatever info we have
+            return {
+              id: recentSong.id,
+              path: recentSong.songPath,
+              displayName: recentSong.songTitle || 'Unknown Song',
+              artist: recentSong.songArtist || 'Unknown Artist',
+              cover: recentSong.songCover || '/assets/gallery/defaultmusic.webp',
+              album: recentSong.songAlbum || 'Unknown Album',
+              duration: recentSong.songDuration || 0,
+              isOnline: recentSong.isOnline || false,
+              source: recentSong.source || 'unknown',
+              dateAdded: recentSong.dateAdded,
+              webPath: recentSong.webPath || null // Add webPath
+            };
+          } catch (error) {
+            console.error('Error getting song data:', error);
+            return null;
+          }
+        }));
+        
+        // Filter out null values and update state
+        this.recentPlayedSongs = songsWithData.filter(song => song !== null);
+        
+      } catch (error) {
+        console.error('Error loading recently played:', error);
+        this.recentPlayedSongs = [];
+      } finally {
+        this.isLoadingRecentPlayed = false;
+        this.showPlaceholders = false;
+      }
+      
+      return this.recentPlayedSongs;
+    },
+    
+    // Refresh all data - call after scan or major changes
+    async refreshLibraryData() {
+      this.localSongs = [];
+      this.favoriteSongs = [];
+      this.recentPlayedSongs = [];
+      
+      // Load sort preferences first
+      this.loadSortPreferences();
+      
+      await this.loadStats();
+      await this.loadLocalSongs();
+      await this.loadFavorites();
+      await this.loadRecentPlayed();
+    },
+    
+    // Load sort preferences from localStorage
+    loadSortPreferences() {
+      try {
+        // Get saved sort settings or use defaults
+        const savedSortBy = localStorage.getItem('musicSortBy');
+        const savedSortDirection = localStorage.getItem('musicSortDirection');
+        
+        // Only update if valid values are found
+        if (savedSortBy && ['date', 'name', 'size'].includes(savedSortBy)) {
+          this.sortBy = savedSortBy;
+        }
+        
+        if (savedSortDirection && ['asc', 'desc'].includes(savedSortDirection)) {
+          this.sortDirection = savedSortDirection;
+        }
+      } catch (error) {
+        console.error('Error loading sort preferences:', error);
+      }
+    },
+    
+    // Comparison methods for sorting
+    compareDates(a, b) {
+      try {
+        // Handle MediaStore dateAdded (timestamp) vs filesystem dateAdded (ISO string)
+        let dateA = 0;
+        let dateB = 0;
+        
+        // Parse dates properly
+        if (a.dateAdded) {
+          // If it's a number (MediaStore timestamp), convert to date
+          if (typeof a.dateAdded === 'number') {
+            dateA = a.dateAdded;
+          } else {
+            // If it's a string (ISO date), parse it
+            dateA = new Date(a.dateAdded).getTime();
+          }
+        }
+        
+        if (b.dateAdded) {
+          // If it's a number (MediaStore timestamp), convert to date
+          if (typeof b.dateAdded === 'number') {
+            dateB = b.dateAdded;
+          } else {
+            // If it's a string (ISO date), parse it
+            dateB = new Date(b.dateAdded).getTime();
+          }
+        }
+        
+        // Apply sort direction
+        return this.sortDirection === 'desc' 
+          ? dateB - dateA 
+          : dateA - dateB;
+      } catch (error) {
+        console.error('Error comparing dates:', error);
+        return 0;
+      }
+    },
+
+    compareNames(a, b) {
+      try {
+        // Get name values or default to empty string if not available
+        const nameA = (a.displayName || a.title || '').toString().toLowerCase();
+        const nameB = (b.displayName || b.title || '').toString().toLowerCase();
+        
+        // Define character categories (0: letters, 1: numbers, 2: symbols)
+        const getCategory = (str) => {
+          if (!str) return 2;
+          const firstChar = str.charAt(0);
+          if (/[a-z]/i.test(firstChar)) return 0;
+          if (/[0-9]/.test(firstChar)) return 1;
+          return 2;
+        };
+        
+        const categoryA = getCategory(nameA);
+        const categoryB = getCategory(nameB);
+        
+        // If categories are different, sort by category first
+        if (categoryA !== categoryB) {
+          return this.sortDirection === 'desc'
+            ? categoryB - categoryA
+            : categoryA - categoryB;
+        }
+        
+        // Within same category, use locale-aware string comparison
+        const result = nameA.localeCompare(nameB, undefined, { 
+          numeric: true,       // Treat numbers as numbers
+          sensitivity: 'base'  // Ignore case and accents
+        });
+        
+        return this.sortDirection === 'desc' ? -result : result;
+      } catch (error) {
+        console.error('Error comparing names:', error);
+        return 0;
+      }
+    },
+
+    compareSizes(a, b) {
+      try {
+        // Ensure we're working with numbers
+        let sizeA = 0;
+        let sizeB = 0;
+        
+        // Handle different formats of size data
+        if (a.size !== undefined) {
+          sizeA = typeof a.size === 'number' ? a.size : parseInt(String(a.size).replace(/\D/g, '') || '0', 10);
+        }
+        
+        if (b.size !== undefined) {
+          sizeB = typeof b.size === 'number' ? b.size : parseInt(String(b.size).replace(/\D/g, '') || '0', 10);
+        }
+        
+        // Apply sort direction
+        return this.sortDirection === 'desc' 
+          ? sizeB - sizeA 
+          : sizeA - sizeB;
+      } catch (error) {
+        console.error('Error comparing sizes:', error);
+        return 0;
+      }
+    },
+    
+    // Toggle favorite status of a song
+    async toggleSongFavorite(song) {
+      const adapter = await this.getAdapter();
+      const { name, version } = DatabaseConfig.MusicCache;
+      const isFavorite = this.isSongFavorite(song.path);
+      
+      if (isFavorite) {
+        // Remove from favorites
+        const favSongs = await adapter.getAllFromIndex(
+          name, version, 'playlistSongs', 'playlistId', 'favorites',
+          DatabaseConfig.MusicCache.getUpgradeFunction()
+        );
+        
+        // Find the favorite entry for this song
+        const favEntry = favSongs.find(favSong => favSong.songPath === song.path);
+        if (favEntry) {
+          await adapter.delete(
+            name, version, 'playlistSongs', favEntry.id,
+            DatabaseConfig.MusicCache.getUpgradeFunction()
+          );
+        }
+        
+        // Update favorite songs list
+        this.favoriteSongs = this.favoriteSongs.filter(s => s.path !== song.path);
+      } else {
+        // Add to favorites
+        const { v4: uuidv4 } = await import('uuid');
+        
+        const favSong = {
+          id: uuidv4(),
+          playlistId: 'favorites',
+          songPath: song.path,
+          // Store complete song metadata for proper display
+          songTitle: song.displayName || song.title || 'Unknown Title',
+          songArtist: song.artist || 'Unknown Artist',
+          songCover: song.cover || '/assets/gallery/defaultmusic.webp',
+          songDuration: song.duration || 0,
+          songAlbum: song.album || 'Unknown Album',
+          isOnline: song.isOnline || false,
+          source: song.source || 'local',
+          webPath: song.webPath || null, // Add webPath
+          dateAdded: new Date().toISOString()
+        };
+        
+        await adapter.add(
+          name, version, 'playlistSongs', favSong,
+          DatabaseConfig.MusicCache.getUpgradeFunction()
+        );
+        
+        // Add to favorites list
+        this.favoriteSongs.push({
+          id: favSong.id,
+          path: favSong.songPath,
+          displayName: favSong.songTitle,
+          artist: favSong.songArtist,
+          cover: favSong.songCover,
+          duration: favSong.songDuration,
+          album: favSong.songAlbum,
+          isOnline: favSong.isOnline,
+          source: favSong.source,
+          webPath: favSong.webPath // Add webPath
+        });
+      }
+      
+      // Update stats
+      this.stats.favorites = this.favoriteSongs.length;
+      
+      return !isFavorite; // Return new favorite status
+    },
+
+    // Update song metadata in database and local state
+    async updateSongMetadata(song) {
+      try {
+        const adapter = await this.getAdapter();
+        const { name, version } = DatabaseConfig.MusicCache;
+        
+        // Create a sanitized copy of the song object without non-serializable properties
+        const sanitizedSong = this._sanitizeSongForStorage(song);
+        
+        // Update the song in the database
+        await adapter.put(
+          name, 
+          version, 
+          'localSongs', 
+          sanitizedSong, 
+          'path',
+          DatabaseConfig.MusicCache.getUpgradeFunction()
+        );
+        
+        // Update the song in the localSongs array
+        const songIndex = this.localSongs.findIndex(s => s.path === song.path);
+        if (songIndex !== -1) {
+          // Create a new object to ensure reactivity, but keep the original cover/blob data
+          // for display purposes in the current session
+          this.localSongs[songIndex] = { 
+            ...this.localSongs[songIndex],
+            ...sanitizedSong,
+            // Preserve the original cover URL for display in the current session
+            cover: song.cover
+          };
+        }
+        
+        return true;
+      } catch (error) {
+        console.error('Error updating song metadata:', error);
+        return false;
+      }
+    },
+    
+    // Helper method to sanitize song object for storage in database
+    _sanitizeSongForStorage(song) {
+      // Create a shallow copy to avoid modifying the original
+      const sanitized = { ...song };
+      
+      // Handle blob URLs in cover - convert to string representation or use default
+      if (sanitized.cover && (
+          sanitized.cover instanceof Blob || 
+          (typeof sanitized.cover === 'string' && sanitized.cover.startsWith('blob:'))
+      )) {
+        // Replace blob URL with default cover or data URL if available
+        sanitized.cover = sanitized.coverData || asset('assets/gallery/defaultmusic.webp');
+      }
+      
+      // Remove any blob objects that can't be serialized
+      if (sanitized.coverBlob) delete sanitized.coverBlob;
+      
+      // Remove circular references or other non-serializable properties
+      if (sanitized.blob) delete sanitized.blob;
+      if (sanitized.file) delete sanitized.file;
+      
+      return sanitized;
+    },
+
+
+
+    //------------------------------------------------------
+    // LYRICS SEARCH METHODS
+    //------------------------------------------------------
+    
+    /**
+     * Get cached lyrics for a song
+     * @param {Object} song - The song object
+     * @returns {Object|null} Cached lyrics data or null if not cached
+     */
+    getCachedLyrics(song) {
+      if (!song || !song.path) return null;
+      
+      // Create a cache key based on song path, title, and artist for better matching
+      const cacheKey = this.getLyricsCacheKey(song);
+      return this.lyricsCache.get(cacheKey) || null;
+    },
+    
+    /**
+     * Set cached lyrics for a song
+     * @param {Object} song - The song object
+     * @param {Object} lyricsData - The lyrics data to cache
+     */
+    setCachedLyrics(song, lyricsData) {
+      if (!song || !song.path || !lyricsData) return;
+      
+      const cacheKey = this.getLyricsCacheKey(song);
+      
+      // Add timestamp for cache expiration (optional)
+      const cacheEntry = {
+        ...lyricsData,
+        cachedAt: Date.now(),
+        songPath: song.path,
+        songTitle: song.displayName || song.title,
+        songArtist: song.artist
+      };
+      
+      this.lyricsCache.set(cacheKey, cacheEntry);
+      
+      // Limit cache size to prevent memory issues (keep last 50 lyrics)
+      if (this.lyricsCache.size > 50) {
+        const firstKey = this.lyricsCache.keys().next().value;
+        this.lyricsCache.delete(firstKey);
+      }
+      
+      console.log(`Cached lyrics for: ${song.displayName || song.title}`);
+    },
+    
+    /**
+     * Generate cache key for lyrics based on song properties
+     * @param {Object} song - The song object
+     * @returns {string} Cache key
+     */
+    getLyricsCacheKey(song) {
+      const title = (song.displayName || song.title || '').toLowerCase().trim();
+      const artist = (song.artist || '').toLowerCase().trim();
+      const path = song.path || '';
+      
+      // Use path as primary key, with title+artist as fallback for better matching
+      return `${path}|${title}|${artist}`;
+    },
+    
+    /**
+     * Set current lyrics data
+     * @param {Object} lyricsData - The lyrics data
+     */
+    setCurrentLyrics(lyricsData) {
+      this.currentLyrics = lyricsData;
+    },
+    
+    /**
+     * Clear current lyrics
+     */
+    clearCurrentLyrics() {
+      this.currentLyrics = null;
+    },
+    
+    /**
+     * Clear all cached lyrics
+     */
+    clearLyricsCache() {
+      this.lyricsCache.clear();
+      this.currentLyrics = null;
+      console.log('Lyrics cache cleared');
+    },
+    async fetchRelatedSongs(videoId) {
+      if (this.lastRelatedVideoId === videoId && this.relatedSongs.length > 0) {
+        return this.relatedSongs;
+      }
+      
+      try {
+        const relatedData = await musicApi.getRelatedSongs(videoId);
+        this.relatedSongs = relatedData;
+        this.lastRelatedVideoId = videoId;
+        return relatedData;
+      } catch (error) {
+        console.error('Error loading related songs:', error);
+        this.relatedSongs = [];
+        return [];
+      }
+    },
+    /**
+     * Search for lyrics using Api search with caching
+     * @param {Object} song - The song object containing title and artist information
+     * @returns {Promise<Object>} Lyrics response data
+     */
+    async LyricsApiSearch(song = null) {
+      try {
+        // Use current song if no song is provided
+        const targetSong = song || this.currentSong;
+        
+        if (!targetSong || !targetSong.displayName) {
+          console.warn('No song information available for lyrics search');
+          return { status: 'error', message: 'No song information available' };
+        }
+        
+        // Check cache first
+        const cachedLyrics = this.getCachedLyrics(targetSong);
+        if (cachedLyrics) {
+          console.log('Using cached lyrics for:', targetSong.displayName || targetSong.title);
+          this.setCurrentLyrics(cachedLyrics);
+          return { status: 'success', data: cachedLyrics, source: 'cache' };
+        }
+        
+        // Construct search query
+        const artist = targetSong.artist || '';
+        const songTitle = (targetSong.displayName || targetSong.title || '').replace(artist, '');
+        const searchQuery = encodeURIComponent(`${artist} ${songTitle}`);
+        
+        console.log('Fetching lyrics from API for:', searchQuery);
+        
+        // Use the lyricsApiService to search for lyrics
+        const payloadurl = Helper.getApiDomain() + `/api/lyrics/${searchQuery}`;
+        const response = await axios.get(payloadurl);
+        
+        console.log('Lyrics search results:', response.data);
+        
+        // Cache the results if successful
+        if (response.data.status === 'success' && response.data.data && response.data.data.lyrics) {
+          this.setCachedLyrics(targetSong, response.data.data);
+          this.setCurrentLyrics(response.data.data);
+        } else {
+          // Cache empty result to avoid repeated failed requests
+          const emptyResult = { 
+            lyrics: null, 
+            artist_name: artist, 
+            track_name: songTitle,
+            message: 'No lyrics found'
+          };
+          this.setCachedLyrics(targetSong, emptyResult);
+          this.setCurrentLyrics(emptyResult);
+        }
+        
+        return response.data;
+      } catch (error) {
+        console.error('Error searching for lyrics:', error);
+        
+        // Cache error result to avoid repeated failed requests for a short time
+        const errorResult = { 
+          lyrics: null, 
+          artist_name: (song || this.currentSong)?.artist || '', 
+          track_name: (song || this.currentSong)?.displayName || (song || this.currentSong)?.title || '',
+          message: 'Error fetching lyrics',
+          error: true
+        };
+        
+        // Only cache errors for 5 minutes to allow retry later
+        if (song || this.currentSong) {
+          setTimeout(() => {
+            const cacheKey = this.getLyricsCacheKey(song || this.currentSong);
+            const cached = this.lyricsCache.get(cacheKey);
+            if (cached && cached.error) {
+              this.lyricsCache.delete(cacheKey);
+            }
+          }, 5 * 60 * 1000); // 5 minutes
+          
+          this.setCachedLyrics(song || this.currentSong, errorResult);
+        }
+        
+        return { status: 'error', message: error.message || 'Error fetching lyrics' };
+      }
+    },
+
+    /**
+     * Search for lyrics online using Google search
+     * @param {Object} song - The song object containing title and artist information
+     * @returns {Promise<void>}
+     */
+    async LyricsWebSearch(song = null) {
+      try {
+        // Use current song if no song is provided
+        const targetSong = song || this.currentSong;
+        
+        if (!targetSong || !targetSong.displayName) {
+          console.warn('No song information available for lyrics search');
+          return;
+        }
+        // Construct search query
+        const songTitle = targetSong.displayName || targetSong.title || '';
+        const artist = targetSong.artist || '';
+        
+        // Create Google search query for lyrics
+        const searchQuery = `${songTitle} ${artist} lyrics genius maxmatch azlyrics`;
+        const encodedQuery = encodeURIComponent(searchQuery);
+        const googleUrl = `https://www.google.com/search?q=${encodedQuery}`;
+        
+        console.log(`Searching lyrics for: ${searchQuery}`);
+        
+        // Open Google search in browser
+        await browserService.openBrowser({
+          url: googleUrl,
+          windowName: 'lyrics-search',
+          windowFeatures: {
+            width: 500,
+            height: 700,
+            resizable: 'yes',
+            scrollbars: 'yes',
+            toolbar: 'yes',
+            location: 'yes'
+          },
+          presentationStyle: 'fullscreen',
+          toolbarColor: '#ffffff',
+          onPageLoaded: () => {
+            console.log('Lyrics search page loaded');
+          },
+          onClosed: () => {
+            console.log('Lyrics search window closed');
+          }
+        });
+        
+      } catch (error) {
+        console.error('Error searching for lyrics:', error);
+        // Fallback to opening URL directly if browserService fails
+        try {
+          const songTitle = (song || this.currentSong)?.displayName || 'Unknown Song';
+          const artist = (song || this.currentSong)?.artist || 'Unknown Artist';
+          const searchQuery = `${songTitle} ${artist} lyrics`;
+          const encodedQuery = encodeURIComponent(searchQuery);
+          const googleUrl = `https://www.google.com/search?q=${encodedQuery}`;
+          
+          window.open(googleUrl, '_blank');
+        } catch (fallbackError) {
+          console.error('Fallback lyrics search also failed:', fallbackError);
+        }
+      }
+    },
+
+    /**
+     * Get the last played song from recent played list
+     * @returns {Promise<Object|null>} Last played song or null if none found
+     */
+    async getLastPlayedSong() {
+      try {
+        const adapter = await this.getAdapter();
+        const { name, version } = DatabaseConfig.MusicCache;
+        
+        // Get recently played from database (sorted by newest first)
+        const recentlyPlayed = await adapter.getAllFromIndex(
+          name, version, 'playlistSongs', 'playlistId', 'recentPlayed',
+          DatabaseConfig.MusicCache.getUpgradeFunction()
+        );
+        
+        // console.log('recentlyPlayed', recentlyPlayed);
+        
+        if (recentlyPlayed.length === 0) {
+          return null;
+        }
+        
+        // Sort by date added (newest first) and get the most recent
+        recentlyPlayed.sort((a, b) => new Date(b.dateAdded) - new Date(a.dateAdded));
+        const lastPlayedEntry = recentlyPlayed[0];
+        
+        // Try to get complete song data
+        let songData = null;
+        
+        // First check if the recent entry has stored metadata (for online songs)
+        if (lastPlayedEntry.songTitle && lastPlayedEntry.songArtist) {
+          songData = {
+            id: lastPlayedEntry.id,
+            path: lastPlayedEntry.songPath,
+            displayName: lastPlayedEntry.songTitle,
+            artist: lastPlayedEntry.songArtist,
+            cover: lastPlayedEntry.songCover || asset('assets/gallery/defaultmusic.webp'),
+            duration: lastPlayedEntry.songDuration || 0,
+            album: lastPlayedEntry.songAlbum || 'Unknown Album',
+            isOnline: lastPlayedEntry.isOnline || false,
+            source: lastPlayedEntry.source || 'local',
+            webPath: lastPlayedEntry.webPath || null
+          };
+        } else {
+          // Fallback to localSongs database for local songs
+          try {
+            songData = await adapter.get(
+              name, version, 'localSongs', lastPlayedEntry.songPath,
+              DatabaseConfig.MusicCache.getUpgradeFunction()
+            );
+          } catch (error) {
+            console.warn('Could not find song data in localSongs database:', error);
+          }
+        }
+        
+        // If no complete song data found, create a basic entry
+        if (!songData) {
+          songData = {
+            id: lastPlayedEntry.id,
+            path: lastPlayedEntry.songPath,
+            displayName: lastPlayedEntry.songTitle || 'Unknown Song',
+            artist: lastPlayedEntry.songArtist || 'Unknown Artist',
+            cover: lastPlayedEntry.songCover || asset('assets/gallery/defaultmusic.webp'),
+            duration: lastPlayedEntry.songDuration || 0,
+            album: lastPlayedEntry.songAlbum || 'Unknown Album',
+            isOnline: lastPlayedEntry.isOnline || false,
+            source: lastPlayedEntry.source || 'unknown',
+            webPath: lastPlayedEntry.webPath || null
+          };
+        }
+        // console.log('songData', songData);
+        return songData;
+        
+      } catch (error) {
+        console.error('Error getting last played song:', error);
+        return null;
+      }
+    },
+
+    /**
+     * Restore last played song as current song (without starting playback)
+     * This is used during app initialization to restore the previous session
+     * @returns {Promise<boolean>} True if last played song was restored, false otherwise
+     */
+    async restoreLastPlayedSong() {
+      try {
+        const lastSong = await this.getLastPlayedSong();
+        
+        if (lastSong) {
+          // console.log('Restoring last played song:', lastSong.displayName);
+          
+          // Set as current song without starting playback
+          // Note: Cover conversion will happen in loadSong if needed
+          this.updateCurrentSong(lastSong);
+          
+          // Load the song in the player (but don't auto-play)
+          // This will handle cover conversion automatically
+          if (this.musicPlayerRef) {
+            this.musicPlayerRef.loadSong(lastSong);
+          }
+          
+          return true;
+        }
+        
+        return false;
+      } catch (error) {
+        console.error('Error restoring last played song:', error);
+        return false;
+      }
+    },
+  },
+});

@@ -1,0 +1,1231 @@
+<template>
+  <span>
+    <Player
+      ref="musicAudioRef"
+      className="music-audio"
+      :key="state.url + '_' + state.playbackRate" 
+      :url="state.url"
+      :playing="state.isPlaying"
+      :controls="state.controls"
+      :loop="state.loop"
+      :pip="state.pip"
+      :playbackRate="state.playbackRate"
+      :volume="state.volume"
+      :muted="state.muted"
+      :width="state.width"
+      :height="state.height"
+      :config="{
+        file: {
+          forceAudio: true,
+          attributes: {
+            preload: 'auto'
+          }
+        }
+      }"
+      @ready="handleReady"
+      @start="handleStart"
+      @play="playSong"
+      @pause="pauseSong"
+      @buffer="handleBuffer"
+      @bufferEnd="handleBufferEnd"
+      @playbackRateChange="handlePlaybackRateChange"
+      @seek="handleSeek"
+      @ended="handleSongEnd"
+      @error="handleError"
+      @progress="updateProgress"
+      @duration="handleDuration"
+      @playbackQualityChange="handlePlaybackQualityChange"
+    />
+  </span>
+</template>
+
+<script>
+import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue';
+import MediaPlayer from './MediaPlayer.vue';
+import { useAutoCounterStore } from '../../../libs/store/autoCounterStore'; // Adjust the path as needed
+import { useMusicPlayerStore } from '../../../libs/store/musicPlayerStore';
+import { useUserStore } from '../../../libs/store/userStore';
+import { useAccessTimeStore } from '../../../libs/store/accessTimeStore';
+import MusicApi from '../../../libs/media/musicapi';
+import { asset } from '../../../function/asset';
+import { Capacitor } from '@capacitor/core';
+import { MediaSession } from '@jofr/capacitor-media-session';
+import { VolumeControl } from '@odion-cloud/capacitor-volume-control';
+import DBadapterService from '../../../libs/database/db-adapter';
+
+import { v4 as uuidv4 } from 'uuid';
+import Helper from '../../../function/helper';
+
+export default {
+  name: 'MusicPlayer',
+  components: {
+    Player: MediaPlayer,
+  },
+  setup() {
+    const musicAudioRef = ref(null);
+    const musicPlayerStore = useMusicPlayerStore();
+    const autoCounterStore = useAutoCounterStore();
+    const userStore = useUserStore();
+    const accessTimeStore = useAccessTimeStore();
+
+    // Initialize database adapter
+    let dbAdapter = null;
+    const getAdapter = async () => {
+      if (!dbAdapter) {
+        dbAdapter = new DBadapterService();
+        await dbAdapter.initialize();
+      }
+      return dbAdapter;
+    };
+
+    
+    const state = reactive({
+      songs: [],
+      currentPlaylist: 'newSongs',
+      songIndex: 0,
+      isPlaying: false,
+      isBuffering: false,
+      isStarted: false,
+      repeatMode: 'order',
+      totalDuration: '00:00',
+      currentTime: 0,
+      url: '',
+      volume: 1.0,
+      muted: false,
+      controls: false,
+      loaded: 0,
+      duration: 0,
+      loop: false,
+      playbackRate: 1.0,
+      pip: false,
+      mediaSessionInitialized: false,
+      endTriggered: false,
+      volumeControlInitialized: false,
+      isWatchingVolume: false,
+      width: '100%',
+      height: '100%'
+    });
+
+    const currentSong = computed(() => 
+      state.songs.length > 0 ? state.songs[state.songIndex] : musicPlayerStore.currentSong
+    );
+
+    const playPauseIcon = computed(() => {
+      if (state.isBuffering || (state.isPlaying && !state.isStarted)) {
+        return 'fa-solid fa-spinner fa-spin-pulse';
+      }
+      return state.isPlaying ? 'fa-regular fa-pause' : 'fa-regular fa-play';
+    });
+
+    const favouriteIconClass = computed(() => 
+      currentSong.value.favourite ? 'fa-solid fa-heart' : 'fa-regular fa-heart'
+    );
+
+    const repeatIcon = computed(() => {
+      switch (state.repeatMode) {
+        case 'order': return 'fa-regular fa-grip-lines';
+        case 'loop-all': return 'fa-regular fa-repeat';
+        case 'shuffle': return 'fa-regular fa-shuffle';
+        case 'repeat-1': return 'fa-regular fa-repeat-1';
+      }
+    });
+
+    const handleReady = () => {
+      // console.log('onReady');
+      
+      // Initialize MediaSession after player is ready
+      if (state.isPlaying) {
+        // Update position state once ready
+        updateMediaSessionPositionState();
+        
+        // Safely try to play if we were supposed to be playing
+        if (musicAudioRef.value) {
+          const internalPlayer = musicAudioRef.value.getInternalPlayer();
+          // Check if internal player exists and has play method before calling
+          if (internalPlayer && typeof internalPlayer.play === 'function') {
+            try {
+              internalPlayer.play();
+            } catch (error) {
+              console.error('Error calling play on internal player:', error);
+            }
+          }
+        }
+      }
+    };
+
+    const handleBuffer = () => {
+      console.log('buffing');
+      updateStartedState(false);
+      updateBufferingState(true);
+      
+      // Always stop extra adding when buffering starts
+      stopExtraAdding();
+    };
+
+    const handleBufferEnd = () => {
+      console.log('buffing end');
+      updateBufferingState(false);
+      
+      // Only update started state and count extra if we're actually playing
+      // This prevents counting when seeking on paused songs
+      if (state.isPlaying) {
+        updateStartedState(true);
+        countExtra();
+      }
+    };
+
+    const handleStart = () => {
+      console.log('start playing');
+      updateStartedState(true);
+      countExtra();
+      // Add to recently played when song actually starts playing
+      addToRecentlyPlayed();
+    };
+
+    const handlePlaybackRateChange = (rate) => {
+      console.log('onPlaybackRateChange', rate);
+    };
+
+    const handleSeek = (e) => {
+      console.log('onSeek', e);
+    };
+
+    const handleError = (error) => {
+      console.error('Music player error:', error);
+      
+      // Stop all playback and reset states
+      pauseSong();
+      
+      // Reset player state to prevent stuck states
+      state.isBuffering = false;
+      state.isStarted = false;
+      updateBufferingState(false);
+      updateStartedState(false);
+      
+      // If we have multiple songs, try to skip to the next one
+      if (state.songs && state.songs.length > 1) {
+        console.log('Attempting to skip to next song due to playback error');
+        setTimeout(() => {
+          try {
+            nextSong();
+          } catch (nextError) {
+            console.error('Error skipping to next song:', nextError);
+          }
+        }, 1000);
+      }
+    };
+
+    const handleDuration = (duration) => {
+      if (duration > 0 && (state.duration === 0 || duration > state.duration)) {
+        state.duration = duration;
+        updateTotalDuration();
+        updateMediaSessionPositionState();
+      }
+    };
+
+    const handlePlaybackQualityChange = (quality) => {
+      console.log('onPlaybackQualityChange', quality);
+    };
+
+    const playSong = async () => {
+      const hasAccess = await accessTimeStore.hasAccessTime(); // Await the latest check
+      // if (!hasAccess) {
+      //   return false; // Stop execution if access time has expired
+      // }
+    
+      state.isPlaying = true;
+      updatePlayingState(true);
+      countExtra();
+      
+      // Update media session playback state to "playing"
+      updateMediaSessionPlaybackState("playing");
+      
+      // Only set buffering state if we're definitely not already playing
+      // This prevents overriding the bufferEnd handler
+      if (!state.isStarted && !musicAudioRef.value?.getCurrentTime()) {
+        updateStartedState(false);
+        updateBufferingState(true);
+        stopExtraAdding();
+      }
+    };
+
+    const pauseSong = () => {
+      console.log('pauseSong');
+      
+      // Immediately stop all counting/extra adding
+      stopExtraAdding();
+      
+      // Update all states
+      state.isPlaying = false;
+      updatePlayingState(false);
+      updateStartedState(false);
+      updateBufferingState(false);
+      
+      // Update media session playback state to "paused"
+      updateMediaSessionPlaybackState("paused");
+    };
+
+    const togglePlayPause = () => {
+      if (state.isPlaying) {
+        pauseSong();
+      } else {
+        playSong();
+      }
+    };
+
+    const toggleFavourite = async () => {
+      try {
+        const songPath = currentSong.value.path;
+        if (!songPath) return;
+        
+        const adapter = await getAdapter();
+        const { name, version } = adapter.getConfig().MusicCache;
+        
+        // Check if song is already in favorites
+        const favoriteSongs = await adapter.getAllFromIndex(
+          name,
+          version,
+          'playlistSongs',
+          'playlistId',
+          'favorites',
+          adapter.getConfig().MusicCache.getUpgradeFunction()
+        );
+        
+        const existingFavorite = favoriteSongs.find(song => song.songPath === songPath);
+        
+        if (existingFavorite) {
+          // If already in favorites, remove it
+          await adapter.delete(
+            name,
+            version,
+            'playlistSongs',
+            existingFavorite.id,
+            adapter.getConfig().MusicCache.getUpgradeFunction()
+          );
+          
+          // Update the current song's favorite status
+          currentSong.value.favourite = false;
+          updateCurrentSong(currentSong.value);
+        } else {
+          // If not in favorites, add it with complete metadata
+          const newFavorite = {
+            id: uuidv4(),
+            playlistId: 'favorites',
+            songPath: songPath,
+            // Store complete song metadata for proper display
+            songTitle: currentSong.value.displayName || currentSong.value.title || 'Unknown Title',
+            songArtist: currentSong.value.artist || 'Unknown Artist',
+            songCover: currentSong.value.cover || asset('assets/gallery/defaultmusic.webp'),
+            songDuration: currentSong.value.duration || 0,
+            songAlbum: currentSong.value.album || 'Unknown Album',
+            isOnline: currentSong.value.isOnline || false,
+            source: currentSong.value.source || 'local',
+            webPath: currentSong.value.webPath || null,
+            dateAdded: new Date().toISOString()
+          };
+          
+          await adapter.add(
+            name,
+            version,
+            'playlistSongs',
+            newFavorite,
+            adapter.getConfig().MusicCache.getUpgradeFunction()
+          );
+          
+          // Update the current song's favorite status
+          currentSong.value.favourite = true;
+          updateCurrentSong(currentSong.value);
+        }
+      } catch (error) {
+        console.error('Error toggling favorite:', error);
+      }
+    };
+
+    const loadPlaylist = (list, index) => {
+      // Store original playlist order for restoring from shuffle mode
+      musicPlayerStore.setOriginalPlaylist(list);
+      
+      state.songs = [...list];
+      state.songIndex = index;
+      loadSong(state.songs[index]);
+      
+      // Add to recently played when initially loading a song from playlist
+      addToRecentlyPlayed();
+    };
+
+    const loadSong = async (song) => {
+      try {
+        // console.log('Loading song:', song?.displayName || 'Unknown');
+        
+        // Validate song object
+        if (!song) {
+          console.error('Cannot load song: song is null or undefined');
+          return;
+        }
+        
+        // NOTE: This is the SINGLE SOURCE OF TRUTH for song loading and cover conversion
+        // All other components should rely on the store state updates, not do their own conversions
+        
+      // Reset the end triggered flag when loading a new song
+      state.endTriggered = false;
+      
+        // Ensure we have a valid path for playback
+        let songUrl = '';
+      if (song.webPath) {
+          songUrl = song.webPath;
+      } else if (song.fullPath) {
+          songUrl = song.fullPath;
+        } else if (song.path) {
+          songUrl = song.path;
+      } else {
+          console.error('Cannot load song: no valid path found', song);
+          return;
+      }
+
+        // console.log('Song URL for playback:', songUrl);
+        state.url = songUrl;
+
+        // Check if the song is in favorites (with error handling)
+      if (song.path) {
+        try {
+          const adapter = await getAdapter();
+          const { name, version } = adapter.getConfig().MusicCache;
+          
+          // Get all favorites
+          const favorites = await adapter.getAllFromIndex(
+            name,
+            version,
+            'playlistSongs',
+            'playlistId',
+            'favorites',
+            adapter.getConfig().MusicCache.getUpgradeFunction()
+          );
+          
+          // Update favorite status
+          song.favourite = favorites.some(fav => fav.songPath === song.path);
+        } catch (error) {
+          console.error('Error checking favorite status:', error);
+            song.favourite = false; // Default to false if check fails
+        }
+      }
+
+      // Reset current time & update media metadata
+      state.currentTime = 0;
+      // Set duration from song if available
+      const durationInSeconds = parseSongDuration(song.duration);
+      
+      if (durationInSeconds > 0) {
+        state.duration = durationInSeconds;
+        updateTotalDuration();
+      } else {
+        state.duration = 0;
+      }
+      
+      // Convert cover to base64 for Capacitor apps before updating store
+      if (song.cover) {
+        song.cover = await Helper.imageUrlToBase64(song.cover);
+      }
+      
+      updateCurrentSong(song);
+      await updateMediaSessionMetadata(song);
+        
+        // console.log('Song loaded successfully:', song.displayName);
+      
+      // Note: addToRecentlyPlayed is now called in handleStart when song actually begins playing
+      } catch (error) {
+        console.error('Error loading song:', error);
+        // Set a fallback to prevent complete failure
+        if (song) {
+          // Convert cover for fallback case too
+          if (song.cover) {
+            song.cover = await Helper.imageUrlToBase64(song.cover);
+          }
+          updateCurrentSong(song);
+        }
+      }
+    };
+
+    const updateMediaSessionMetadata = async (song) => {
+      try {
+        // Prepare artwork array
+        const artwork = [];
+        if (song.cover) {
+          artwork.push({
+              src: song.cover,
+              sizes: "512x512"
+          });
+        }
+
+        // Set metadata using capacitor plugin on native platforms
+        if (Capacitor.isNativePlatform()) {
+          await MediaSession.setMetadata({
+            title: song.displayName || song.title || 'Unknown Title',
+            artist: song.artist || 'Unknown Artist',
+            album: song.album || 'Unknown Album',
+            artwork: artwork
+          });
+        } 
+        // Fallback to web API for web platform
+        else if ("mediaSession" in navigator) {
+          navigator.mediaSession.metadata = new MediaMetadata({
+            title: song.displayName || song.title || 'Unknown Title',
+            artist: song.artist || 'Unknown Artist',
+            album: song.album || 'Unknown Album',
+            artwork: artwork
+          });
+        }
+
+        // Setup media session action handlers if not already initialized
+        if (!state.mediaSessionInitialized) {
+          setupMediaSessionActionHandlers();
+          state.mediaSessionInitialized = true;
+        }
+      } catch (error) {
+        console.error('Error updating media session metadata:', error);
+      }
+    };
+
+    const updateMediaSessionPlaybackState = async (playbackState) => {
+      try {
+        if (Capacitor.isNativePlatform()) {
+          await MediaSession.setPlaybackState({
+            playbackState: playbackState
+          });
+        } else if ("mediaSession" in navigator) {
+          navigator.mediaSession.playbackState = playbackState;
+        }
+      } catch (error) {
+        console.error('Error updating media session playback state:', error);
+      }
+    };
+
+    const updateMediaSessionPositionState = async () => {
+      try {
+        if (!musicAudioRef.value || state.duration <= 0) {
+          return;
+        }
+
+        const position = musicAudioRef.value.getCurrentTime() || 0;
+        const playbackRate = state.playbackRate;
+        const duration = state.duration;
+
+        if (Capacitor.isNativePlatform()) {
+          await MediaSession.setPositionState({
+            duration: duration,
+            playbackRate: playbackRate,
+            position: position
+          });
+        } else if ("mediaSession" in navigator && navigator.mediaSession.setPositionState) {
+          navigator.mediaSession.setPositionState({
+            duration: duration,
+            playbackRate: playbackRate,
+            position: position
+          });
+        }
+      } catch (error) {
+        console.error('Error updating media session position state:', error);
+      }
+    };
+
+    const setupMediaSessionActionHandlers = async () => {
+      try {
+        // Define actions and their handlers
+        const actions = [
+          { action: "play", handler: () => playSong() },
+          { action: "pause", handler: () => pauseSong() },
+          { action: "previoustrack", handler: () => prevSong() },
+          { action: "nexttrack", handler: () => nextSong() },
+          { action: "stop", handler: () => pauseSong() },
+          { 
+            action: "seekbackward", 
+            handler: (details) => {
+              const currentTime = musicAudioRef.value?.getCurrentTime() || 0;
+              const seekTime = details?.seekTime || 10; // Default to 10 seconds
+              musicAudioRef.value?.seekTo(Math.max(0, currentTime - seekTime), 'seconds');
+            } 
+          },
+          { 
+            action: "seekforward", 
+            handler: (details) => {
+              const currentTime = musicAudioRef.value?.getCurrentTime() || 0;
+              const seekTime = details?.seekTime || 10; // Default to 10 seconds
+              musicAudioRef.value?.seekTo(Math.min(state.duration, currentTime + seekTime), 'seconds');
+            } 
+          },
+          { 
+            action: "seekto", 
+            handler: (details) => {
+              if (details && typeof details.seekTime === 'number') {
+                musicAudioRef.value?.seekTo(details.seekTime, 'seconds');
+              }
+            } 
+          }
+        ];
+
+        // Register action handlers
+        for (const { action, handler } of actions) {
+          if (Capacitor.isNativePlatform()) {
+            await MediaSession.setActionHandler({ action }, handler ? handler : null);
+          } else if ("mediaSession" in navigator) {
+            navigator.mediaSession.setActionHandler(action, handler);
+          }
+        }
+      } catch (error) {
+        console.error('Error setting up media session action handlers:', error);
+      }
+    };
+
+    const updateCurrentSong = (song) => {
+      musicPlayerStore.updateCurrentSong(song);
+    };
+
+    const updatePlayingState = (isPlaying) => {
+      musicPlayerStore.setPlayingState(isPlaying);
+    };
+
+    const updateBufferingState = (isBuffering) => {
+      musicPlayerStore.setBufferingState(isBuffering);
+    };
+
+    const updateStartedState = (isStarted) => {
+      musicPlayerStore.setStartedState(isStarted);
+    };
+
+    const formated = (seconds) => {
+      const date = new Date(seconds * 1000);
+      const hh = date.getUTCHours();
+      const mm = String(date.getUTCMinutes()).padStart(2, '0');
+      const ss = String(date.getUTCSeconds()).padStart(2, '0');
+      return hh ? `${hh}:${mm}:${ss}` : `${mm}:${ss}`;
+    };
+
+    const parseSongDuration = (duration) => {
+      if (!duration) return 0;
+      
+      if (typeof duration === 'number' && duration > 0) {
+        return duration;
+      }
+      
+      if (typeof duration === 'string') {
+        const parts = duration.trim().split(':');
+        
+        if (parts.length === 1) {
+          return parseInt(parts[0], 10) || 0;
+        } else if (parts.length === 2) {
+          const [minutes, seconds] = parts.map(p => parseInt(p, 10));
+          return (minutes * 60 + seconds) || 0;
+        } else if (parts.length === 3) {
+          const [hours, minutes, seconds] = parts.map(p => parseInt(p, 10));
+          return (hours * 3600 + minutes * 60 + seconds) || 0;
+        }
+      }
+      
+      return 0;
+    };
+
+    const updateFormattedCurrentTime = () => {
+      const currentTimeInSeconds = state.currentTime;
+      const formattedTime = formated(currentTimeInSeconds);
+      musicPlayerStore.updateFormattedCurrentTime(formattedTime);
+    };
+
+    const updateTotalDuration = () => {
+      const durationInSeconds = state.duration;
+      const formattedDuration = formated(durationInSeconds);
+      musicPlayerStore.updateTotalDuration(formattedDuration);
+    };
+
+    const prevSong = async () => {
+      state.songIndex = (state.songIndex - 1 + state.songs.length) % state.songs.length;
+      loadSong(state.songs[state.songIndex]);
+      
+      // Add to recently played when manually navigating to previous song
+      addToRecentlyPlayed();
+      
+      if (state.isPlaying) {
+        playSong();
+      }
+    };
+
+    const nextSong = async () => {
+      state.songIndex = (state.songIndex + 1) % state.songs.length;
+      loadSong(state.songs[state.songIndex]);
+      
+      // Add to recently played when manually navigating to next song
+      addToRecentlyPlayed();
+      
+      if (state.isPlaying) {
+        playSong();
+      }
+    };
+
+    const handleSongEnd = async () => {
+      console.log('handleSongEnd', state.repeatMode);
+      
+      // Check if we're already handling an end event
+      if (state.endTriggered) {
+        console.log('End event already being handled, ignoring duplicate');
+        return;
+      }
+      
+      // Set the flag to prevent multiple calls
+      state.endTriggered = true;
+      
+      // Always stop extra counting immediately when song ends
+      stopExtraAdding();
+      
+      // Use a local copy of the current index to avoid race conditions
+      const currentIndex = state.songIndex;
+      
+      try {
+      switch (state.repeatMode) {
+        case 'order':
+            if (currentIndex < state.songs.length - 1) {
+              // Move to next track
+              const nextIndex = currentIndex + 1;
+              state.songIndex = nextIndex;
+              await loadSong(state.songs[nextIndex]);
+              
+              // Add to recently played when automatically moving to next song
+              addToRecentlyPlayed();
+              
+              // Small delay before playing to ensure everything is ready
+              setTimeout(async () => {
+           await playSong();
+              }, 100);
+                  } else {
+          // End of playlist in order mode
+          pauseSong();
+          // Reset to beginning of track without triggering play
+          setTimeout(() => {
+            if (musicAudioRef.value && !state.isPlaying) {
+              musicAudioRef.value.seekTo(0, 'seconds');
+            }
+          }, 50);
+        }
+          break;
+        case 'loop-all':
+            // Go to next song or back to first if at end
+            const nextLoopIndex = (currentIndex + 1) % state.songs.length;
+            state.songIndex = nextLoopIndex;
+            await loadSong(state.songs[nextLoopIndex]);
+            
+            // Add to recently played when looping to next song
+            addToRecentlyPlayed();
+            
+            // Small delay before playing to ensure everything is ready
+            setTimeout(async () => {
+          await playSong();
+            }, 100);
+          break;
+        case 'shuffle':
+          if (state.songs.length > 0) {
+              // Select a random song index (different from current)
+              let newIndex;
+              if (state.songs.length > 1) {
+                do {
+                  newIndex = Math.floor(Math.random() * state.songs.length);
+                } while (newIndex === currentIndex);
+                state.songIndex = newIndex;
+              } else {
+                state.songIndex = 0; // Only one song, so just replay it
+              }
+              await loadSong(state.songs[state.songIndex]);
+              
+              // Add to recently played when shuffling to new song
+              addToRecentlyPlayed();
+              
+              // Small delay before playing to ensure everything is ready
+              setTimeout(async () => {
+            await playSong();
+              }, 100);
+          }
+          break;
+        case 'repeat-1':
+            // Repeat the same song - no need to add to recently played again since it's the same song
+           musicAudioRef.value.seekTo(0, 'seconds');
+            
+            // Small delay before playing to ensure everything is ready
+            setTimeout(async () => {
+           await playSong();
+            }, 100);
+          break;
+        }
+      } catch (error) {
+        console.error('Error handling song end:', error);
+        // Fallback - try to continue with next song if possible
+        if (currentIndex < state.songs.length - 1) {
+          const fallbackIndex = currentIndex + 1;
+          state.songIndex = fallbackIndex;
+          await loadSong(state.songs[fallbackIndex]);
+          
+          // Add to recently played for fallback song
+          addToRecentlyPlayed();
+          
+          // Small delay before playing to ensure everything is ready
+          setTimeout(async () => {
+            await playSong();
+          }, 100);
+        }
+      } finally {
+        // Reset the flag after a longer delay to prevent triggering again too soon
+        setTimeout(() => {
+          state.endTriggered = false;
+        }, 1500);
+      }
+    };
+
+    const updateProgress = (progress) => {
+      if (state.isPlaying) {
+        const durationInSeconds = state.duration;
+        const currentTimeInSeconds = progress.playedSeconds || 0;
+
+        // Validate and sanitize the progress values
+        if (durationInSeconds > 0) {
+          // Ensure currentTime doesn't exceed duration (with small tolerance for floating point)
+          const sanitizedCurrentTime = Math.min(currentTimeInSeconds, durationInSeconds);
+          const progressPercent = (sanitizedCurrentTime / durationInSeconds) * 100;
+
+          state.currentTime = sanitizedCurrentTime;
+          
+          // SYNC CURRENT TIME TO STORE - This was missing!
+          musicPlayerStore.currentTime = sanitizedCurrentTime;
+          
+          updateFormattedCurrentTime();
+          
+          // Update media session position state every 3 seconds
+          if (Math.floor(sanitizedCurrentTime) % 3 === 0) {
+            updateMediaSessionPositionState();
+          }
+
+          musicPlayerStore.songProgress(Math.min(100, Math.max(0, progressPercent)));
+        }
+      }
+    };
+
+    const seek = (event) => {
+      const val = event.value;
+      const seekToSeconds = state.duration * (val / 100);
+      state.currentTime = seekToSeconds;
+      musicAudioRef.value.seekTo(seekToSeconds, 'seconds');
+      updateFormattedCurrentTime();
+      updateMediaSessionPositionState();
+    };
+
+    const countExtra = () => {
+      const Hashrate = (userStore.Hashrate / userStore.DivideHashrate);
+      autoCounterStore.countExtra(Hashrate, 100);
+    };
+
+    const stopExtraAdding = () => {
+      autoCounterStore.stopExtraAdding();
+    };
+
+    // Cleanup media session on component unmount
+    const cleanupMediaSession = async () => {
+      if (Capacitor.isNativePlatform()) {
+        try {
+          // Set playback state to "none" to clear notification
+          await MediaSession.setPlaybackState({ playbackState: "none" });
+        } catch (error) {
+          console.error('Error cleaning up media session:', error);
+        }
+      }
+    };
+
+    // Volume Control Integration
+    let volumeListenerHandle = null;
+
+    const initializeVolumeControl = async () => {
+      try {
+        if (!Capacitor.isNativePlatform()) {
+          return;
+        }
+
+        if (state.volumeControlInitialized || state.isWatchingVolume) {
+          return;
+        }
+
+        // Get initial system volume level
+        const currentVolume = await VolumeControl.getVolumeLevel();
+        state.volume = currentVolume.value;
+
+        // Add event listener first (v2.0.0 API pattern)
+        volumeListenerHandle = await VolumeControl.addListener('volumeButtonPressed', async (event) => {
+          try {
+            // Get current volume after button press
+            const volumeResult = await VolumeControl.getVolumeLevel();
+            const newVolume = volumeResult.value;
+            
+            // Update if volume actually changed
+            if (Math.abs(state.volume - newVolume) >= 0.01) {
+              state.volume = newVolume;
+              musicPlayerStore.updateVolumeFromSystem(newVolume);
+            }
+          } catch (error) {
+            console.error('Error handling volume button press:', error);
+          }
+        });
+
+        // Start watching for volume button presses
+        await VolumeControl.watchVolume({
+          suppressVolumeIndicator: true,     // Android: hide volume indicator
+          disableSystemVolumeHandler: true   // iOS: disable system volume UI
+        });
+
+        state.isWatchingVolume = true;
+        state.volumeControlInitialized = true;
+      } catch (error) {
+        console.error('Failed to initialize volume control:', error);
+        if (error.message && error.message.includes('already')) {
+          state.isWatchingVolume = true;
+          state.volumeControlInitialized = true;
+        }
+      }
+    };
+
+    const cleanupVolumeControl = async () => {
+      try {
+        if (state.isWatchingVolume && Capacitor.isNativePlatform()) {
+          // Remove event listener
+          if (volumeListenerHandle) {
+            await volumeListenerHandle.remove();
+            volumeListenerHandle = null;
+          }
+          
+          // Clear the volume watching
+          await VolumeControl.clearWatch();
+          
+          state.isWatchingVolume = false;
+          state.volumeControlInitialized = false;
+        }
+      } catch (error) {
+        console.error('Error cleaning up volume control:', error);
+      }
+    };
+
+    // Methods to be called from the store
+    const setVolume = async (value) => {
+      try {
+        const clampedValue = Math.max(0, Math.min(1, value));
+        
+        // Prevent setting the same value to avoid loops
+        if (Math.abs(state.volume - clampedValue) < 0.005) {
+          return;
+        }
+        
+        state.volume = clampedValue;
+        
+        // Set system volume if on native platform
+        if (Capacitor.isNativePlatform() && state.volumeControlInitialized) {
+          await VolumeControl.setVolumeLevel({ value: clampedValue });
+        }
+      } catch (error) {
+        console.error('Error setting volume:', error);
+        state.volume = Math.max(0, Math.min(1, value));
+      }
+    };
+
+    const setMuted = async (value) => {
+      try {
+        state.muted = value;
+        
+        if (Capacitor.isNativePlatform() && state.volumeControlInitialized) {
+          if (value) {
+            const currentVolume = await VolumeControl.getVolumeLevel();
+            state.volume = currentVolume.value;
+            await VolumeControl.setVolumeLevel({ value: 0 });
+          } else {
+            await VolumeControl.setVolumeLevel({ value: state.volume });
+          }
+        }
+        
+        musicPlayerStore.setMuted(value);
+      } catch (error) {
+        console.error('Error setting muted state:', error);
+        state.muted = value;
+      }
+    };
+
+    // Add song to recently played - use current song from store with decrypted data
+    const addToRecentlyPlayed = async () => {
+      try {
+        // Small delay to ensure song is fully loaded
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Use current song from store which has decrypted values
+        const song = currentSong.value;
+        // console.log('Adding to recent playlist:', song);
+        
+        // Better validation - ensure we have a valid song with path
+        if (!song || !song.path || song.path === null || song.displayName === 'Load song to play') {
+          console.log('Skipping recent playlist - no valid song');
+          return;
+        }
+        
+        const adapter = await getAdapter();
+        const { name, version } = adapter.getConfig().MusicCache;
+        
+        // Check if song already exists in recently played
+        const recentSongs = await adapter.getAllFromIndex(
+          name,
+          version,
+          'playlistSongs',
+          'playlistId',
+          'recentPlayed',
+          adapter.getConfig().MusicCache.getUpgradeFunction()
+        );
+        
+        // Find existing entry
+        const existingEntry = recentSongs.find(recentSong => recentSong.songPath === song.path);
+        
+        if (existingEntry) {
+          // Update the existing entry's dateAdded to move it to top
+          await adapter.put(
+            name,
+            version,
+            'playlistSongs',
+            {
+              ...existingEntry,
+              dateAdded: new Date().toISOString()
+            },
+            'id',
+            adapter.getConfig().MusicCache.getUpgradeFunction()
+          );
+          
+          // console.log('Updated existing recent entry:', existingEntry.songTitle);
+          return;
+        }
+        
+        // Create new entry with proper song data
+        const recentSong = {
+          id: uuidv4(),
+          playlistId: 'recentPlayed',
+          songPath: song.path,
+          // Store additional song metadata for proper display
+          songTitle: song.displayName || song.title || 'Unknown Title',
+          songArtist: song.artist || 'Unknown Artist',
+          songCover: song.cover || asset('assets/gallery/defaultmusic.webp'),
+          songDuration: song.duration || 0,
+          songAlbum: song.album || 'Unknown Album',
+          isOnline: song.isOnline || false,
+          source: song.source || 'local',
+          // For local songs, store the webPath for playback
+          webPath: song.webPath || null,
+          dateAdded: new Date().toISOString()
+        };
+        
+        // Add to recently played
+        await adapter.add(
+          name,
+          version,
+          'playlistSongs',
+          recentSong,
+          adapter.getConfig().MusicCache.getUpgradeFunction()
+        );
+        
+        // console.log('Successfully added to recent playlist:', recentSong.songTitle);
+        
+        // Limit recently played to 50 songs
+        const updatedRecentSongs = await adapter.getAllFromIndex(
+          name,
+          version,
+          'playlistSongs',
+          'playlistId',
+          'recentPlayed',
+          adapter.getConfig().MusicCache.getUpgradeFunction()
+        );
+        
+        if (updatedRecentSongs.length > 50) {
+          // Sort by date and remove oldest
+          updatedRecentSongs.sort((a, b) => new Date(a.dateAdded) - new Date(b.dateAdded));
+          
+          // Remove oldest songs to keep only 50
+          for (let i = 0; i < updatedRecentSongs.length - 50; i++) {
+            await adapter.delete(
+              name,
+              version,
+              'playlistSongs',
+              updatedRecentSongs[i].id,
+              adapter.getConfig().MusicCache.getUpgradeFunction()
+            );
+          }
+        }
+      } catch (error) {
+        console.error('Error adding to recently played:', error);
+      }
+    };
+
+    const repeat = () => {
+      // Store the current song before potentially shuffling
+      const currentSongValue = currentSong.value;
+      
+      switch (state.repeatMode) {
+        case 'order':
+          // Switch to loop all mode (plays through playlist and repeats)
+          state.repeatMode = 'loop-all';
+          state.loop = false;
+          break;
+        case 'loop-all':
+          // Switch to shuffle mode
+          state.repeatMode = 'shuffle';
+          state.loop = false;
+          
+          // Only shuffle if we have multiple songs
+          if (state.songs.length > 1) {
+            // Shuffle the playlist but keep current song at current position
+            const currentSongIndex = state.songIndex;
+            const currentSong = state.songs[currentSongIndex];
+            
+            // Remove current song from the array for shuffling
+            const songsToShuffle = [...state.songs];
+            songsToShuffle.splice(currentSongIndex, 1);
+            
+            // Shuffle the remaining songs
+            for (let i = songsToShuffle.length - 1; i > 0; i--) {
+              const j = Math.floor(Math.random() * (i + 1));
+              [songsToShuffle[i], songsToShuffle[j]] = [songsToShuffle[j], songsToShuffle[i]];
+            }
+            
+            // Put the current song back at the current position
+            songsToShuffle.splice(currentSongIndex, 0, currentSong);
+            state.songs = songsToShuffle;
+          }
+          break;
+        case 'shuffle':
+          // Switch to repeat single song mode
+          state.repeatMode = 'repeat-1';
+          state.loop = true; // Enable looping for single song repeat
+          break;
+        case 'repeat-1':
+          // Back to default order mode
+          state.repeatMode = 'order';
+          state.loop = false;
+          
+          // If we previously shuffled, restore original order if needed
+          if (musicPlayerStore.originalPlaylist && musicPlayerStore.originalPlaylist.length > 0) {
+            // Find current song in original playlist
+            const currentPath = currentSongValue.path;
+            const newIndex = musicPlayerStore.originalPlaylist.findIndex(song => song.path === currentPath);
+            
+            if (newIndex !== -1) {
+              state.songs = [...musicPlayerStore.originalPlaylist];
+              state.songIndex = newIndex;
+            }
+          }
+          break;
+      }
+      
+      // Find current song's new index if playlist order changed
+      if (currentSongValue && currentSongValue.path) {
+        const newIndex = state.songs.findIndex(song => song.path === currentSongValue.path);
+        if (newIndex !== -1) {
+          state.songIndex = newIndex;
+        }
+      }
+      
+      // Update store with new repeat mode
+      musicPlayerStore.setRepeatMode(state.repeatMode);
+    };
+
+    onMounted(async () => {
+      try {
+        if (!musicAudioRef.value) {
+          console.warn('MusicAudio ref is not available');
+          return;
+        }
+        
+        // Register the component with the store first to prevent duplicate initialization
+        musicPlayerStore.setMusicPlayerRef({
+          togglePlayPause,
+          playSong,
+          pauseSong,
+          nextSong,
+          prevSong,
+          seek,
+          setVolume,
+          setMuted,
+          toggleFavourite
+        });
+        
+        // Initialize volume control
+        await initializeVolumeControl();
+        
+        // Load the current song
+        loadSong(currentSong.value);
+      } catch (error) {
+        console.error('Error in mounted hook:', error);
+      }
+    });
+
+    onBeforeUnmount(async () => {
+      try {
+        // Clean up volume control first
+        await cleanupVolumeControl();
+        // Clean up media session
+        await cleanupMediaSession();
+        
+        // Reset initialization flags
+        state.volumeControlInitialized = false;
+        state.isWatchingVolume = false;
+      } catch (error) {
+        console.error('Error during cleanup:', error);
+      }
+    });
+
+    return {
+      musicAudioRef,
+      state,
+      currentSong,
+      playPauseIcon,
+      favouriteIconClass,
+      repeatIcon,
+      handleReady,
+      handleBuffer,
+      handleBufferEnd,
+      handleStart,
+      handlePlaybackRateChange,
+      handleSeek,
+      handleError,
+      handleDuration,
+      handlePlaybackQualityChange,
+      playSong,
+      pauseSong,
+      togglePlayPause,
+      toggleFavourite,
+      loadPlaylist,
+      loadSong,
+      updateMediaSessionMetadata,
+      updateCurrentSong,
+      updatePlayingState,
+      updateBufferingState,
+      updateStartedState,
+      formated,
+      parseSongDuration,
+      updateFormattedCurrentTime,
+      updateTotalDuration,
+      prevSong,
+      nextSong,
+      repeat,
+      handleSongEnd,
+      updateProgress,
+      seek,
+      countExtra,
+      stopExtraAdding,
+      setVolume,
+      setMuted,
+      initializeVolumeControl,
+      cleanupVolumeControl,
+    };
+  },
+};
+</script>
+
+<style>
+/* .music-audio {
+  display: none;
+} */
+ iframe {
+ border-radius: 13px;
+ }
+</style>
