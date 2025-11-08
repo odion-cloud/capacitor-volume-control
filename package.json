@@ -39,6 +39,9 @@
   "author": "Kelly Igiogbe <liwizyk@gmail.com>",
   "license": "MIT",
   "dependencies": {
+    "@capacitor-community/volume-buttons": "^1.0.2"
+  },
+  "peerDependencies": {
     "@capacitor/core": "^5.0.0"
   },
   "devDependencies": {

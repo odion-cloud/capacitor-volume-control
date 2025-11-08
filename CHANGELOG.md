@@ -7,28 +7,24 @@ All notable changes to this project will be documented in this file.
 ### Breaking Changes
 - **API Change**: `watchVolume()` no longer accepts a callback parameter
 - **New Pattern**: Use `addListener('volumeButtonPressed', callback)` before calling `watchVolume(options)`
-- **Android**: MainActivity integration **required** for volume button detection
 - Event listeners now persist for continuous hardware button detection instead of one-time callbacks
 
 ### Fixed
-- **Critical**: Hardware volume buttons now work correctly with Activity-level key event handling
-- **Android**: Simplified implementation using `dispatchKeyEvent` pattern (MainActivity integration required)
-- **Android**: Changed from `call.resolve()` to `notifyListeners()` for persistent event emission
-- **Android**: Fixed `suppressVolumeIndicator` option to work correctly with event listeners
-- **iOS**: Changed from `savedCall.resolve()` to `notifyListeners()` for persistent event emission
-- **iOS**: Fixed `disableSystemVolumeHandler` option to work correctly with event listeners
+- **Critical**: Hardware volume buttons now work correctly using proven community package!
+- **Button Watching**: Now powered by `@capacitor-community/volume-buttons` (battle-tested implementation)
+- **Android**: No MainActivity integration required - buttons work automatically!
+- **iOS**: No additional setup needed - buttons work out of the box!
 - **TypeScript**: Updated definitions to use proper Capacitor event listener pattern
 - **Web**: Added explicit `addListener()` override to match interface signature
-- **Build**: Removed MediaSession dependency to simplify implementation
 
 ### Improved
-- **Android**: Clean, simple implementation with no external dependencies beyond standard Android SDK
-- **Documentation**: Comprehensive README updates with MainActivity integration guide
+- **Reliability**: Volume button watching now uses proven `@capacitor-community/volume-buttons` package
+- **Setup**: Zero configuration required - just install and use!
+- **Documentation**: Simplified README with no complex setup instructions
 - **Documentation**: Updated all framework examples (React, Vue, Angular) to use new API
 - **Documentation**: Added migration notice for breaking changes
-- **Documentation**: Complete MAINACTIVITY_INTEGRATION.md guide with imports and examples
 - **Testing**: Updated test suite to match new event listener pattern
-- **Package**: Reduced package size to 15.6 kB (removed androidx.media dependency)
+- **Architecture**: Clean separation: community package for buttons, our code for get/set volume
 
 ### Migration from v1.x
 

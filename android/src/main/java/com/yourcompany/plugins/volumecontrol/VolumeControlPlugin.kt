@@ -2,7 +2,6 @@ package com.yourcompany.plugins.volumecontrol
 
 import android.content.Context
 import android.media.AudioManager
-import android.view.KeyEvent
 import com.getcapacitor.JSObject
 import com.getcapacitor.Plugin
 import com.getcapacitor.PluginCall
@@ -14,8 +13,6 @@ import kotlin.math.round
 class VolumeControlPlugin : Plugin() {
     
     private lateinit var audioManager: AudioManager
-    private var isStarted = false
-    private var suppressVolumeIndicator = false
     
     override fun load() {
         audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
@@ -75,59 +72,5 @@ class VolumeControlPlugin : Plugin() {
         } catch (e: Exception) {
             call.reject("Failed to set volume level", e)
         }
-    }
-    
-    @PluginMethod(returnType = PluginMethod.RETURN_PROMISE)
-    fun isWatching(call: PluginCall) {
-        val ret = JSObject()
-        ret.put("value", isStarted)
-        call.resolve(ret)
-    }
-    
-    @PluginMethod
-    fun watchVolume(call: PluginCall) {
-        if (isStarted) {
-            call.reject("Volume buttons has already been watched")
-            return
-        }
-        
-        suppressVolumeIndicator = call.getBoolean("suppressVolumeIndicator") ?: false
-        isStarted = true
-        call.resolve()
-    }
-    
-    /**
-     * Handle volume key events from MainActivity's dispatchKeyEvent
-     * Returns true if the event was handled and should be consumed
-     */
-    fun handleVolumeKeyEvent(keyCode: Int, event: KeyEvent): Boolean {
-        if (!isStarted) {
-            return false
-        }
-        
-        if (keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
-            // Only handle ACTION_DOWN to avoid duplicate events
-            if (event.action == KeyEvent.ACTION_DOWN) {
-                val ret = JSObject()
-                ret.put("direction", if (keyCode == KeyEvent.KEYCODE_VOLUME_UP) "up" else "down")
-                notifyListeners("volumeButtonPressed", ret)
-            }
-            // Return true to suppress volume indicator if option is enabled
-            return suppressVolumeIndicator
-        }
-        
-        return false
-    }
-    
-    @PluginMethod
-    fun clearWatch(call: PluginCall) {
-        if (!isStarted) {
-            call.reject("Volume buttons has not been watched")
-            return
-        }
-        
-        isStarted = false
-        suppressVolumeIndicator = false
-        call.resolve()
     }
 }

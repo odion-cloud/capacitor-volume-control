@@ -30,44 +30,9 @@ npm install @odion-cloud/capacitor-volume-control
 npx cap sync
 ```
 
-### ⚠️ Android: MainActivity Integration Required
+### ✅ No MainActivity Integration Required!
 
-To intercept hardware volume button presses on Android, add this code to your MainActivity:
-
-**MainActivity.kt (Kotlin):**
-```kotlin
-import android.view.KeyEvent
-import com.yourcompany.plugins.volumecontrol.VolumeControlPlugin
-
-override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-    val plugin = this.bridge.getPlugin("VolumeControl").getInstance()
-    if (plugin is VolumeControlPlugin) {
-        if (plugin.handleVolumeKeyEvent(event.keyCode, event)) {
-            return true
-        }
-    }
-    return super.dispatchKeyEvent(event)
-}
-```
-
-**MainActivity.java (Java):**
-```java
-import android.view.KeyEvent;
-import com.yourcompany.plugins.volumecontrol.VolumeControlPlugin;
-
-@Override
-public boolean dispatchKeyEvent(KeyEvent event) {
-    Plugin plugin = this.bridge.getPlugin("VolumeControl").getInstance();
-    if (plugin instanceof VolumeControlPlugin) {
-        if (((VolumeControlPlugin) plugin).handleVolumeKeyEvent(event.getKeyCode(), event)) {
-            return true;
-        }
-    }
-    return super.dispatchKeyEvent(event);
-}
-```
-
-See [MAINACTIVITY_INTEGRATION.md](MAINACTIVITY_INTEGRATION.md) for complete integration guide.
+This plugin uses `@capacitor-community/volume-buttons` for hardware button detection, which means **no MainActivity code changes needed**. Just install and use!
 
 ## Setup
 

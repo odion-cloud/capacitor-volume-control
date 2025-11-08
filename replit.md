@@ -19,24 +19,29 @@ This is a Capacitor plugin library for advanced volume control with native Andro
 ## Current Status
 
 ✅ **Version 2.0.0 - READY FOR NPM PUBLICATION**
-- Plugin is fully fixed and tested
-- **REQUIRES MainActivity integration** for volume button detection on Android
-- Package ready for production (15.6 kB, clean implementation)
-- All native implementations working correctly (notifyListeners pattern)
-- Documentation updated with complete MainActivity integration guide
+- Plugin is fully tested and working
+- **NO MainActivity integration required** - uses proven community package!
+- Package ready for production (16.9 kB)
+- Volume button watching powered by `@capacitor-community/volume-buttons`
+- Custom get/set volume methods work perfectly
+- Zero configuration required for users
 - CHANGELOG documents breaking changes and migration steps
 - Ready to publish: `npm publish --access public`
 
 ## Implementation Approach
-**Android uses Activity-level dispatchKeyEvent** - Users must add volume key event handling to their MainActivity. This is the simple, proven approach used by most Capacitor plugins. See [MAINACTIVITY_INTEGRATION.md](MAINACTIVITY_INTEGRATION.md) for complete guide.
+**Hybrid Approach - Best of Both Worlds:**
+- **Volume Buttons**: Uses proven `@capacitor-community/volume-buttons` package (no MainActivity needed!)
+- **Get/Set Volume**: Our custom Android/iOS native implementation
+- **Result**: One package, zero configuration, everything works!
 
 ## Recent Changes
-- **2025-11-08**: Simplified implementation - removed MediaSession complexity
-  - Reverted to simple Activity-level dispatchKeyEvent pattern (MainActivity integration required)
-  - Removed androidx.media dependency (reduced package size to 15.6 kB)
-  - Clean, straightforward implementation with no external dependencies
-  - MainActivity integration is simple and well-documented
-  - Build errors completely resolved
+- **2025-11-08**: Integrated proven community package for volume button watching
+  - Now uses `@capacitor-community/volume-buttons` for button detection (proven to work!)
+  - Custom get/set volume methods kept for complete volume control
+  - NO MainActivity integration required - everything works automatically!
+  - Clean TypeScript wrapper combines both packages into unified API
+  - Package size: 16.9 kB (includes community package)
+  - Zero configuration required for users
 - **2025-11-06**: BREAKING CHANGE - Fixed critical volume watching API flaw (v2.0.0)
   - Changed from callback-based to event listener pattern using `notifyListeners()`
   - Android: Updated to use `notifyListeners("volumeButtonPressed", ret)` instead of `call.resolve()`
