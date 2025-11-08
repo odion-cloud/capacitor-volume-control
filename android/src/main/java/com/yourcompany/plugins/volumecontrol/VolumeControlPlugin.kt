@@ -2,9 +2,9 @@ package com.yourcompany.plugins.volumecontrol
 
 import android.content.Context
 import android.media.AudioManager
-import android.support.v4.media.VolumeProviderCompat
-import android.support.v4.media.session.MediaSessionCompat
-import android.support.v4.media.session.PlaybackStateCompat
+import androidx.media.VolumeProviderCompat
+import androidx.media.session.MediaSessionCompat
+import androidx.media.session.PlaybackStateCompat
 import android.view.KeyEvent
 import com.getcapacitor.JSObject
 import com.getcapacitor.Plugin
@@ -165,6 +165,19 @@ class VolumeControlPlugin : Plugin() {
                     val ret = JSObject()
                     ret.put("direction", if (direction > 0) "up" else "down")
                     notifyListeners("volumeButtonPressed", ret)
+                }
+                
+                override fun onSetVolumeTo(volume: Int) {
+                    // Apply the absolute volume change
+                    val clampedVolume = volume.coerceIn(0, maxVolume)
+                    audioManager.setStreamVolume(
+                        AudioManager.STREAM_MUSIC,
+                        clampedVolume,
+                        if (suppressVolumeIndicator) 0 else AudioManager.FLAG_SHOW_UI
+                    )
+                    
+                    // Update the provider's current volume to stay in sync
+                    setCurrentVolume(clampedVolume)
                 }
             }
             
