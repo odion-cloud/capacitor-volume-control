@@ -7,30 +7,28 @@ All notable changes to this project will be documented in this file.
 ### Breaking Changes
 - **API Change**: `watchVolume()` no longer accepts a callback parameter
 - **New Pattern**: Use `addListener('volumeButtonPressed', callback)` before calling `watchVolume(options)`
+- **Android**: MainActivity integration **required** for volume button detection
 - Event listeners now persist for continuous hardware button detection instead of one-time callbacks
 
 ### Fixed
-- **Critical**: Hardware volume buttons now work correctly using MediaSession (no MainActivity modification required!)
-- **Android**: Now uses MediaSession + VolumeProvider for automatic hardware button interception
-- **Android**: Fixed imports to use AndroidX (`androidx.media.*`) instead of deprecated `android.support.v4.*`
-- **Android**: Fixed MediaSession volume provider to query live volume on each button press (not cached)
-- **Android**: VolumeProvider now calls `setCurrentVolume()` to maintain state sync for repeated button presses
-- **Android**: Added required `onSetVolumeTo()` override method to VolumeProviderCompat
-- **Android**: Changed androidx.media dependency from `implementation` to `api` for proper transitive resolution
+- **Critical**: Hardware volume buttons now work correctly with Activity-level key event handling
+- **Android**: Simplified implementation using `dispatchKeyEvent` pattern (MainActivity integration required)
 - **Android**: Changed from `call.resolve()` to `notifyListeners()` for persistent event emission
 - **Android**: Fixed `suppressVolumeIndicator` option to work correctly with event listeners
 - **iOS**: Changed from `savedCall.resolve()` to `notifyListeners()` for persistent event emission
 - **iOS**: Fixed `disableSystemVolumeHandler` option to work correctly with event listeners
 - **TypeScript**: Updated definitions to use proper Capacitor event listener pattern
 - **Web**: Added explicit `addListener()` override to match interface signature
+- **Build**: Removed MediaSession dependency to simplify implementation
 
 ### Improved
-- **Android**: Automatic hardware button detection using MediaSession (no MainActivity changes needed!)
-- **Documentation**: Comprehensive README updates with simplified installation
+- **Android**: Clean, simple implementation with no external dependencies beyond standard Android SDK
+- **Documentation**: Comprehensive README updates with MainActivity integration guide
 - **Documentation**: Updated all framework examples (React, Vue, Angular) to use new API
 - **Documentation**: Added migration notice for breaking changes
-- **Documentation**: MAINACTIVITY_INTEGRATION.md available for advanced users (optional)
+- **Documentation**: Complete MAINACTIVITY_INTEGRATION.md guide with imports and examples
 - **Testing**: Updated test suite to match new event listener pattern
+- **Package**: Reduced package size to 15.6 kB (removed androidx.media dependency)
 
 ### Migration from v1.x
 

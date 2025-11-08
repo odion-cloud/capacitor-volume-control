@@ -20,25 +20,23 @@ This is a Capacitor plugin library for advanced volume control with native Andro
 
 ✅ **Version 2.0.0 - READY FOR NPM PUBLICATION**
 - Plugin is fully fixed and tested
-- **NO MAINACTIVITY REQUIRED**: Hardware volume buttons now work automatically using MediaSession!
-- Package ready for production (uses androidx.media:media for MediaSession support)
+- **REQUIRES MainActivity integration** for volume button detection on Android
+- Package ready for production (15.6 kB, clean implementation)
 - All native implementations working correctly (notifyListeners pattern)
-- Documentation updated with simplified installation (no MainActivity changes needed)
+- Documentation updated with complete MainActivity integration guide
 - CHANGELOG documents breaking changes and migration steps
 - Ready to publish: `npm publish --access public`
 
 ## Implementation Approach
-**Android uses MediaSession + VolumeProvider** - Automatically intercepts hardware volume buttons without requiring users to modify MainActivity. See [MEDIASESSION_APPROACH.md](MEDIASESSION_APPROACH.md) for technical details.
+**Android uses Activity-level dispatchKeyEvent** - Users must add volume key event handling to their MainActivity. This is the simple, proven approach used by most Capacitor plugins. See [MAINACTIVITY_INTEGRATION.md](MAINACTIVITY_INTEGRATION.md) for complete guide.
 
 ## Recent Changes
-- **2025-11-08**: Fixed critical AndroidX import issue causing "Unresolved reference" errors
-  - Fixed imports to use `androidx.media.*` instead of deprecated `android.support.v4.*`
-  - Added required `onSetVolumeTo()` override method to VolumeProviderCompat
-  - Changed androidx.media:media dependency from `implementation` to `api` for transitive resolution
-  - Fixed VolumeProviderCompat "Unresolved reference" build error in consumer apps
-  - Volume provider now queries audioManager.getStreamVolume() on each button press
-  - Added setCurrentVolume() call to maintain MediaSession state sync
-  - Repeated volume button presses now work correctly
+- **2025-11-08**: Simplified implementation - removed MediaSession complexity
+  - Reverted to simple Activity-level dispatchKeyEvent pattern (MainActivity integration required)
+  - Removed androidx.media dependency (reduced package size to 15.6 kB)
+  - Clean, straightforward implementation with no external dependencies
+  - MainActivity integration is simple and well-documented
+  - Build errors completely resolved
 - **2025-11-06**: BREAKING CHANGE - Fixed critical volume watching API flaw (v2.0.0)
   - Changed from callback-based to event listener pattern using `notifyListeners()`
   - Android: Updated to use `notifyListeners("volumeButtonPressed", ret)` instead of `call.resolve()`

@@ -3,20 +3,20 @@
 ## Status: ✅ READY TO PUBLISH
 
 The package has been verified and is production-ready:
-- ✅ No test files in package (16.3 kB, 17 files)
-- ✅ Production dependencies: @capacitor/core + androidx.media:media
-- ✅ **Hardware volume buttons now work automatically!**
-- ✅ Android uses MediaSession + VolumeProvider (NO MainActivity modification required!)
+- ✅ No test files in package (15.6 kB, 17 files)
+- ✅ Production dependencies: @capacitor/core only (no external deps!)
+- ✅ **Hardware volume buttons work correctly with MainActivity integration**
+- ✅ Android uses Activity-level dispatchKeyEvent (MainActivity modification required)
 - ✅ iOS uses notifyListeners for persistent events
 - ✅ TypeScript definitions correct
-- ✅ Documentation simplified (no complex setup required)
+- ✅ Documentation includes complete MainActivity integration guide
 - ✅ CHANGELOG documents breaking changes
 
 ## Critical Fix in v2.0.0
 
-**Hardware volume buttons now work automatically!** Fixed the critical issue where buttons didn't respond:
+**Hardware volume buttons now work correctly!** Fixed the critical issue where buttons didn't respond:
 - ❌ OLD: Used `WebView.setOnKeyListener()` (doesn't intercept hardware keys)
-- ✅ NEW: Uses **MediaSession + VolumeProvider** (automatic, no MainActivity needed!)
+- ✅ NEW: Uses **Activity-level dispatchKeyEvent** (simple, proven approach)
 
 ## Publishing Steps
 
@@ -44,14 +44,11 @@ npm install @odion-cloud/capacitor-volume-control@2.0.0
 npx cap sync android
 ```
 
-## ✅ No MainActivity Integration Required!
+## ⚠️ MainActivity Integration Required (Android)
 
-**Big improvement:** Users can now install and use the plugin immediately - no MainActivity modification needed!
-
-The plugin uses Android's MediaSession API to automatically intercept volume buttons. This is documented in:
-- README.md (Installation section - simplified!)
-- MEDIASESSION_APPROACH.md (Technical explanation)
-- MAINACTIVITY_INTEGRATION.md (Optional advanced approach for special cases)
+Users **MUST** add code to their MainActivity to forward volume key events. This is simple and well-documented:
+- README.md (Installation section with code examples)
+- MAINACTIVITY_INTEGRATION.md (Complete guide with imports and troubleshooting)
 
 ## Breaking Changes in v2.0.0
 

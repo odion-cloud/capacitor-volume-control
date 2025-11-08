@@ -2,9 +2,6 @@ package com.yourcompany.plugins.volumecontrol
 
 import android.content.Context
 import android.media.AudioManager
-import androidx.media.VolumeProviderCompat
-import android.support.v4.media.session.MediaSessionCompat
-import android.support.v4.media.session.PlaybackStateCompat
 import android.view.KeyEvent
 import com.getcapacitor.JSObject
 import com.getcapacitor.Plugin
@@ -17,27 +14,11 @@ import kotlin.math.round
 class VolumeControlPlugin : Plugin() {
     
     private lateinit var audioManager: AudioManager
-    private var mediaSession: MediaSessionCompat? = null
-    private var volumeProvider: VolumeProviderCompat? = null
     private var isStarted = false
     private var suppressVolumeIndicator = false
     
     override fun load() {
         audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-    }
-    
-    override fun handleOnDestroy() {
-        super.handleOnDestroy()
-        cleanupMediaSession()
-    }
-    
-    private fun cleanupMediaSession() {
-        mediaSession?.let {
-            it.isActive = false
-            it.release()
-        }
-        mediaSession = null
-        volumeProvider = null
     }
     
     private fun roundToTwoDecimals(value: Float): Float {
@@ -111,88 +92,12 @@ class VolumeControlPlugin : Plugin() {
         }
         
         suppressVolumeIndicator = call.getBoolean("suppressVolumeIndicator") ?: false
-        
-        try {
-            setupMediaSessionVolumeControl()
-            isStarted = true
-            call.resolve()
-        } catch (e: Exception) {
-            call.reject("Failed to start volume watching: ${e.message}", e)
-        }
-    }
-    
-    private fun setupMediaSessionVolumeControl() {
-        val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-        
-        // Create MediaSession
-        mediaSession = MediaSessionCompat(context, "VolumeControlPlugin").apply {
-            setFlags(
-                MediaSessionCompat.FLAG_HANDLES_MEDIA_BUTTONS or
-                MediaSessionCompat.FLAG_HANDLES_TRANSPORT_CONTROLS
-            )
-            
-            // Set playback state to active (required for volume buttons to work)
-            setPlaybackState(
-                PlaybackStateCompat.Builder()
-                    .setState(PlaybackStateCompat.STATE_PLAYING, 0, 1.0f)
-                    .build()
-            )
-            
-            // Create VolumeProvider to intercept volume button presses
-            volumeProvider = object : VolumeProviderCompat(
-                VolumeProviderCompat.VOLUME_CONTROL_RELATIVE,
-                maxVolume,
-                audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
-            ) {
-                override fun onAdjustVolume(direction: Int) {
-                    // Get current live volume
-                    val currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
-                    
-                    // Calculate new volume
-                    val newVolume = (currentVolume + direction).coerceIn(0, maxVolume)
-                    
-                    // Apply volume change (with or without UI based on suppressVolumeIndicator)
-                    audioManager.setStreamVolume(
-                        AudioManager.STREAM_MUSIC,
-                        newVolume,
-                        if (suppressVolumeIndicator) 0 else AudioManager.FLAG_SHOW_UI
-                    )
-                    
-                    // Update the provider's current volume to stay in sync
-                    setCurrentVolume(newVolume)
-                    
-                    // Notify listeners about button press
-                    val ret = JSObject()
-                    ret.put("direction", if (direction > 0) "up" else "down")
-                    notifyListeners("volumeButtonPressed", ret)
-                }
-                
-                override fun onSetVolumeTo(volume: Int) {
-                    // Apply the absolute volume change
-                    val clampedVolume = volume.coerceIn(0, maxVolume)
-                    audioManager.setStreamVolume(
-                        AudioManager.STREAM_MUSIC,
-                        clampedVolume,
-                        if (suppressVolumeIndicator) 0 else AudioManager.FLAG_SHOW_UI
-                    )
-                    
-                    // Update the provider's current volume to stay in sync
-                    setCurrentVolume(clampedVolume)
-                }
-            }
-            
-            setPlaybackToRemote(volumeProvider)
-            
-            // Required: Set a minimal callback
-            setCallback(object : MediaSessionCompat.Callback() {})
-            
-            isActive = true
-        }
+        isStarted = true
+        call.resolve()
     }
     
     /**
-     * LEGACY METHOD - For backward compatibility with MainActivity integration
-     * This method can still be called from MainActivity's dispatchKeyEvent if needed
+     * Handle volume key events from MainActivity's dispatchKeyEvent
      * Returns true if the event was handled and should be consumed
      */
     fun handleVolumeKeyEvent(keyCode: Int, event: KeyEvent): Boolean {
@@ -221,7 +126,6 @@ class VolumeControlPlugin : Plugin() {
             return
         }
         
-        cleanupMediaSession()
         isStarted = false
         suppressVolumeIndicator = false
         call.resolve()
