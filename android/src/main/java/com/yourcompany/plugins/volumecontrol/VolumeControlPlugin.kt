@@ -3,7 +3,6 @@ package com.yourcompany.plugins.volumecontrol
 import android.content.Context
 import android.media.AudioManager
 import android.view.KeyEvent
-import android.view.View
 import com.getcapacitor.JSObject
 import com.getcapacitor.Plugin
 import com.getcapacitor.PluginCall
@@ -20,6 +19,18 @@ class VolumeControlPlugin : Plugin() {
     
     override fun load() {
         audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    }
+    
+    /**
+     * Handle key events for volume buttons at the activity level
+     * This method is called by the MainActivity's dispatchKeyEvent
+     */
+    override fun handleOnPause() {
+        super.handleOnPause()
+    }
+    
+    override fun handleOnResume() {
+        super.handleOnResume()
     }
     
     private fun roundToTwoDecimals(value: Float): Float {
@@ -93,26 +104,31 @@ class VolumeControlPlugin : Plugin() {
         }
         
         suppressVolumeIndicator = call.getBoolean("suppressVolumeIndicator") ?: false
-        
-        bridge.webView.setOnKeyListener(
-            object : View.OnKeyListener {
-                override fun onKey(v: View?, keyCode: Int, event: KeyEvent?): Boolean {
-                    if (keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
-                        val isKeyDown = event?.action == KeyEvent.ACTION_DOWN
-                        if (isKeyDown) {
-                            val ret = JSObject()
-                            ret.put("direction", if (keyCode == KeyEvent.KEYCODE_VOLUME_UP) "up" else "down")
-                            notifyListeners("volumeButtonPressed", ret)
-                        }
-                        return suppressVolumeIndicator
-                    }
-                    return false
-                }
-            }
-        )
-        
         isStarted = true
         call.resolve()
+    }
+    
+    /**
+     * This method must be called from MainActivity's dispatchKeyEvent
+     * Returns true if the event was handled and should be consumed
+     */
+    fun handleVolumeKeyEvent(keyCode: Int, event: KeyEvent): Boolean {
+        if (!isStarted) {
+            return false
+        }
+        
+        if (keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
+            // Only handle ACTION_DOWN to avoid duplicate events
+            if (event.action == KeyEvent.ACTION_DOWN) {
+                val ret = JSObject()
+                ret.put("direction", if (keyCode == KeyEvent.KEYCODE_VOLUME_UP) "up" else "down")
+                notifyListeners("volumeButtonPressed", ret)
+            }
+            // Return true to suppress volume indicator if option is enabled
+            return suppressVolumeIndicator
+        }
+        
+        return false
     }
     
     @PluginMethod
@@ -122,8 +138,8 @@ class VolumeControlPlugin : Plugin() {
             return
         }
         
-        bridge.webView.setOnKeyListener(null)
         isStarted = false
+        suppressVolumeIndicator = false
         call.resolve()
     }
 }
