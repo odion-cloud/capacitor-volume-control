@@ -3,8 +3,8 @@ package com.yourcompany.plugins.volumecontrol
 import android.content.Context
 import android.media.AudioManager
 import androidx.media.VolumeProviderCompat
-import androidx.media.session.MediaSessionCompat
-import androidx.media.session.PlaybackStateCompat
+import android.support.v4.media.session.MediaSessionCompat
+import android.support.v4.media.session.PlaybackStateCompat
 import android.view.KeyEvent
 import com.getcapacitor.JSObject
 import com.getcapacitor.Plugin

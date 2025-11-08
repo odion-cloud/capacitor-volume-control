@@ -1,0 +1,27 @@
+e: file:///C:/laragon/www/viewmyntebot/node_modules/@odion-cloud/capacitor-volume-control/android/src/main/java/com/yourcompany/plugins/volumecontrol/VolumeControlPlugin.kt:6:31 Unresolved reference 'MediaSessionCompat'.
+e: file:///C:/laragon/www/viewmyntebot/node_modules/@odion-cloud/capacitor-volume-control/android/src/main/java/com/yourcompany/plugins/volumecontrol/VolumeControlPlugin.kt:7:31 Unresolved reference 'PlaybackStateCompat'.
+e: file:///C:/laragon/www/viewmyntebot/node_modules/@odion-cloud/capacitor-volume-control/android/src/main/java/com/yourcompany/plugins/volumecontrol/VolumeControlPlugin.kt:20:31 Unresolved reference 'MediaSessionCompat'.
+e: file:///C:/laragon/www/viewmyntebot/node_modules/@odion-cloud/capacitor-volume-control/android/src/main/java/com/yourcompany/plugins/volumecontrol/VolumeControlPlugin.kt:35:23 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///C:/laragon/www/viewmyntebot/node_modules/@odion-cloud/capacitor-volume-control/android/src/main/java/com/yourcompany/plugins/volumecontrol/VolumeControlPlugin.kt:35:23 Unresolved reference. None of the following candidates is applicable because of a receiver type mismatch:
+fun <T, R> T.let(block: (T) -> R): R
+    [R|Contract description]
+     <
+        CallsInPlace(block, EXACTLY_ONCE)
+    >
+e: file:///C:/laragon/www/viewmyntebot/node_modules/@odion-cloud/capacitor-volume-control/android/src/main/java/com/yourcompany/plugins/volumecontrol/VolumeControlPlugin.kt:35:27 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///C:/laragon/www/viewmyntebot/node_modules/@odion-cloud/capacitor-volume-control/android/src/main/java/com/yourcompany/plugins/volumecontrol/VolumeControlPlugin.kt:36:16 Unresolved reference 'isActive'.
+e: file:///C:/laragon/www/viewmyntebot/node_modules/@odion-cloud/capacitor-volume-control/android/src/main/java/com/yourcompany/plugins/volumecontrol/VolumeControlPlugin.kt:37:16 Unresolved reference 'release'.
+e: file:///C:/laragon/www/viewmyntebot/node_modules/@odion-cloud/capacitor-volume-control/android/src/main/java/com/yourcompany/plugins/volumecontrol/VolumeControlPlugin.kt:128:24 Unresolved reference 'MediaSessionCompat'.
+e: file:///C:/laragon/www/viewmyntebot/node_modules/@odion-cloud/capacitor-volume-control/android/src/main/java/com/yourcompany/plugins/volumecontrol/VolumeControlPlugin.kt:128:75 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///C:/laragon/www/viewmyntebot/node_modules/@odion-cloud/capacitor-volume-control/android/src/main/java/com/yourcompany/plugins/volumecontrol/VolumeControlPlugin.kt:128:81 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///C:/laragon/www/viewmyntebot/node_modules/@odion-cloud/capacitor-volume-control/android/src/main/java/com/yourcompany/plugins/volumecontrol/VolumeControlPlugin.kt:129:13 Unresolved reference 'setFlags'.
+e: file:///C:/laragon/www/viewmyntebot/node_modules/@odion-cloud/capacitor-volume-control/android/src/main/java/com/yourcompany/plugins/volumecontrol/VolumeControlPlugin.kt:130:17 Unresolved reference 'MediaSessionCompat'.
+e: file:///C:/laragon/www/viewmyntebot/node_modules/@odion-cloud/capacitor-volume-control/android/src/main/java/com/yourcompany/plugins/volumecontrol/VolumeControlPlugin.kt:131:17 Unresolved reference 'MediaSessionCompat'.
+e: file:///C:/laragon/www/viewmyntebot/node_modules/@odion-cloud/capacitor-volume-control/android/src/main/java/com/yourcompany/plugins/volumecontrol/VolumeControlPlugin.kt:135:13 Unresolved reference 'setPlaybackState'.
+e: file:///C:/laragon/www/viewmyntebot/node_modules/@odion-cloud/capacitor-volume-control/android/src/main/java/com/yourcompany/plugins/volumecontrol/VolumeControlPlugin.kt:136:17 Unresolved reference 'PlaybackStateCompat'.
+e: file:///C:/laragon/www/viewmyntebot/node_modules/@odion-cloud/capacitor-volume-control/android/src/main/java/com/yourcompany/plugins/volumecontrol/VolumeControlPlugin.kt:137:31 Unresolved reference 'PlaybackStateCompat'.
+e: file:///C:/laragon/www/viewmyntebot/node_modules/@odion-cloud/capacitor-volume-control/android/src/main/java/com/yourcompany/plugins/volumecontrol/VolumeControlPlugin.kt:182:13 Unresolved reference 'setPlaybackToRemote'.
+e: file:///C:/laragon/www/viewmyntebot/node_modules/@odion-cloud/capacitor-volume-control/android/src/main/java/com/yourcompany/plugins/volumecontrol/VolumeControlPlugin.kt:185:13 Unresolved reference 'setCallback'.
+e: file:///C:/laragon/www/viewmyntebot/node_modules/@odion-cloud/capacitor-volume-control/android/src/main/java/com/yourcompany/plugins/volumecontrol/VolumeControlPlugin.kt:185:34 Unresolved reference 'MediaSessionCompat'.
+e: file:///C:/laragon/www/viewmyntebot/node_modules/@odion-cloud/capacitor-volume-control/android/src/main/java/com/yourcompany/plugins/volumecontrol/VolumeControlPlugin.kt:187:13 Unresolved reference 'isActive'.
+
