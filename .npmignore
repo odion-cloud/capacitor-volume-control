@@ -1,0 +1,33 @@
+# Development files
+src/__tests__/
+dist/esm/__tests__/
+*.test.ts
+*.test.js
+*.test.d.ts
+
+# Build tools
+tsconfig.json
+rollup.config.js
+jest.config.js
+
+# Documentation source
+docs/
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+
+# CI/CD
+.github/
+
+# Misc
+*.log
+*.tgz
+node_modules/
+dispose/
+GITHUB_ISSUE_FIX.md
+package-for-local-use.sh
