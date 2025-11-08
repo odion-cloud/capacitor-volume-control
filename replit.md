@@ -31,6 +31,12 @@ This is a Capacitor plugin library for advanced volume control with native Andro
 **Android uses MediaSession + VolumeProvider** - Automatically intercepts hardware volume buttons without requiring users to modify MainActivity. See [MEDIASESSION_APPROACH.md](MEDIASESSION_APPROACH.md) for technical details.
 
 ## Recent Changes
+- **2025-11-08**: Fixed MediaSession volume provider to query live volume and call setCurrentVolume()
+  - Changed androidx.media:media dependency from `implementation` to `api` for transitive resolution
+  - Fixed VolumeProviderCompat "Unresolved reference" build error in consumer apps
+  - Volume provider now queries audioManager.getStreamVolume() on each button press
+  - Added setCurrentVolume() call to maintain MediaSession state sync
+  - Repeated volume button presses now work correctly
 - **2025-11-06**: BREAKING CHANGE - Fixed critical volume watching API flaw (v2.0.0)
   - Changed from callback-based to event listener pattern using `notifyListeners()`
   - Android: Updated to use `notifyListeners("volumeButtonPressed", ret)` instead of `call.resolve()`

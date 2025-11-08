@@ -87,6 +87,22 @@ For advanced users who need more control or are experiencing issues, the legacy 
 
 ## Troubleshooting
 
+### Build Error: "Unresolved reference 'VolumeProviderCompat'"
+
+If you get this error in Android Studio, it means the androidx.media dependency wasn't resolved. **Solution:**
+
+1. **Update the plugin to the latest version:**
+   ```bash
+   npm install @odion-cloud/capacitor-volume-control@latest
+   npx cap sync android
+   ```
+
+2. **In Android Studio:**
+   - Click **File → Sync Project with Gradle Files**
+   - Or click **Build → Clean Project** then **Build → Rebuild Project**
+
+The plugin uses `api` to expose `androidx.media:media:1.6.0` as a transitive dependency, so your app will automatically include it.
+
 ### Volume buttons not working?
 
 1. **Check if watching started successfully:**

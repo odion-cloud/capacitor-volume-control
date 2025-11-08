@@ -34,6 +34,12 @@ npx cap sync
 
 **Version 2.0.0+ uses MediaSession** to automatically intercept hardware volume buttons without requiring MainActivity code changes.
 
+After installation, sync your Android project in Android Studio:
+```bash
+npx cap sync android
+# In Android Studio: File → Sync Project with Gradle Files
+```
+
 > **Note for advanced users:** If you need more control or are experiencing issues, you can optionally use the legacy MainActivity integration approach. See [MAINACTIVITY_INTEGRATION.md](MAINACTIVITY_INTEGRATION.md) for details.
 
 ## Setup

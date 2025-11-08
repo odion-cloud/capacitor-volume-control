@@ -12,6 +12,9 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 - **Critical**: Hardware volume buttons now work correctly using MediaSession (no MainActivity modification required!)
 - **Android**: Now uses MediaSession + VolumeProvider for automatic hardware button interception
+- **Android**: Fixed MediaSession volume provider to query live volume on each button press (not cached)
+- **Android**: VolumeProvider now calls `setCurrentVolume()` to maintain state sync for repeated button presses
+- **Android**: Changed androidx.media dependency from `implementation` to `api` for proper transitive resolution
 - **Android**: Changed from `call.resolve()` to `notifyListeners()` for persistent event emission
 - **Android**: Fixed `suppressVolumeIndicator` option to work correctly with event listeners
 - **iOS**: Changed from `savedCall.resolve()` to `notifyListeners()` for persistent event emission
