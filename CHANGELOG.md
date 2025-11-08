@@ -8,13 +8,11 @@ All notable changes to this project will be documented in this file.
 - **API Change**: `watchVolume()` no longer accepts a callback parameter
 - **New Pattern**: Use `addListener('volumeButtonPressed', callback)` before calling `watchVolume(options)`
 - Event listeners now persist for continuous hardware button detection instead of one-time callbacks
-- **CRITICAL**: Android now requires MainActivity integration (see MAINACTIVITY_INTEGRATION.md)
 
 ### Fixed
-- **Critical**: Hardware volume buttons now work correctly (previous implementation used WebView.setOnKeyListener which doesn't intercept hardware keys)
-- **Android**: Changed from WebView key listener to Activity-level dispatchKeyEvent pattern
+- **Critical**: Hardware volume buttons now work correctly using MediaSession (no MainActivity modification required!)
+- **Android**: Now uses MediaSession + VolumeProvider for automatic hardware button interception
 - **Android**: Changed from `call.resolve()` to `notifyListeners()` for persistent event emission
-- **Android**: Switched to ACTION_DOWN for more responsive button detection
 - **Android**: Fixed `suppressVolumeIndicator` option to work correctly with event listeners
 - **iOS**: Changed from `savedCall.resolve()` to `notifyListeners()` for persistent event emission
 - **iOS**: Fixed `disableSystemVolumeHandler` option to work correctly with event listeners
@@ -22,15 +20,16 @@ All notable changes to this project will be documented in this file.
 - **Web**: Added explicit `addListener()` override to match interface signature
 
 ### Improved
-- **Documentation**: Added MAINACTIVITY_INTEGRATION.md with complete integration guide
-- **Documentation**: Comprehensive README updates with MainActivity integration instructions
+- **Android**: Automatic hardware button detection using MediaSession (no MainActivity changes needed!)
+- **Documentation**: Comprehensive README updates with simplified installation
 - **Documentation**: Updated all framework examples (React, Vue, Angular) to use new API
 - **Documentation**: Added migration notice for breaking changes
+- **Documentation**: MAINACTIVITY_INTEGRATION.md available for advanced users (optional)
 - **Testing**: Updated test suite to match new event listener pattern
 
 ### Migration from v1.x
 
-**1. Update your code** to use event listener pattern:
+**Update your code** to use event listener pattern:
 ```javascript
 // OLD (v1.x)
 await VolumeControl.watchVolume({}, callback);
@@ -40,8 +39,7 @@ await VolumeControl.addListener('volumeButtonPressed', callback);
 await VolumeControl.watchVolume({});
 ```
 
-**2. Add MainActivity integration** (Android only - REQUIRED):
-See [MAINACTIVITY_INTEGRATION.md](MAINACTIVITY_INTEGRATION.md) for complete instructions.
+**No MainActivity changes required!** The plugin now uses MediaSession to automatically intercept volume buttons.
 
 ## [1.0.14] - 2025-11-06
 

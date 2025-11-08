@@ -3,20 +3,20 @@
 ## Status: ✅ READY TO PUBLISH
 
 The package has been verified and is production-ready:
-- ✅ No test files in package (15.7 kB, 17 files)
-- ✅ Only production dependency: @capacitor/core
-- ✅ **Hardware volume buttons now work correctly!**
-- ✅ Android uses Activity-level key event handling (dispatchKeyEvent)
+- ✅ No test files in package (16.3 kB, 17 files)
+- ✅ Production dependencies: @capacitor/core + androidx.media:media
+- ✅ **Hardware volume buttons now work automatically!**
+- ✅ Android uses MediaSession + VolumeProvider (NO MainActivity modification required!)
 - ✅ iOS uses notifyListeners for persistent events
 - ✅ TypeScript definitions correct
-- ✅ Documentation includes MainActivity integration guide
+- ✅ Documentation simplified (no complex setup required)
 - ✅ CHANGELOG documents breaking changes
 
 ## Critical Fix in v2.0.0
 
-**Hardware volume buttons now work!** Fixed the critical issue where buttons didn't respond:
+**Hardware volume buttons now work automatically!** Fixed the critical issue where buttons didn't respond:
 - ❌ OLD: Used `WebView.setOnKeyListener()` (doesn't intercept hardware keys)
-- ✅ NEW: Uses Activity-level `dispatchKeyEvent` pattern (works correctly)
+- ✅ NEW: Uses **MediaSession + VolumeProvider** (automatic, no MainActivity needed!)
 
 ## Publishing Steps
 
@@ -44,12 +44,14 @@ npm install @odion-cloud/capacitor-volume-control@2.0.0
 npx cap sync android
 ```
 
-## ⚠️ Important: MainActivity Integration Required
+## ✅ No MainActivity Integration Required!
 
-Users **MUST** add code to their MainActivity to forward volume key events. This is documented in:
-- README.md (Installation section)
-- MAINACTIVITY_INTEGRATION.md (Complete guide)
-- HARDWARE_BUTTONS_FIX.md (Fix explanation)
+**Big improvement:** Users can now install and use the plugin immediately - no MainActivity modification needed!
+
+The plugin uses Android's MediaSession API to automatically intercept volume buttons. This is documented in:
+- README.md (Installation section - simplified!)
+- MEDIASESSION_APPROACH.md (Technical explanation)
+- MAINACTIVITY_INTEGRATION.md (Optional advanced approach for special cases)
 
 ## Breaking Changes in v2.0.0
 
@@ -78,58 +80,43 @@ await VolumeControl.watchVolume({
 });
 ```
 
-### 2. MainActivity Integration (Android Only - NEW REQUIREMENT)
+### 2. Install and Use - That's It!
 
-**MainActivity.java:**
-```java
-@Override
-public boolean dispatchKeyEvent(KeyEvent event) {
-    Plugin plugin = this.bridge.getPlugin("VolumeControl").getInstance();
-    if (plugin instanceof VolumeControlPlugin) {
-        if (((VolumeControlPlugin) plugin).handleVolumeKeyEvent(event.getKeyCode(), event)) {
-            return true;
-        }
-    }
-    return super.dispatchKeyEvent(event);
-}
+**No MainActivity changes needed!** Just install and start using:
+
+```bash
+npm install @odion-cloud/capacitor-volume-control@2.0.0
+npx cap sync android
 ```
 
-**MainActivity.kt:**
-```kotlin
-override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-    val plugin = this.bridge.getPlugin("VolumeControl").getInstance()
-    if (plugin is VolumeControlPlugin) {
-        if (plugin.handleVolumeKeyEvent(event.keyCode, event)) {
-            return true
-        }
-    }
-    return super.dispatchKeyEvent(event)
-}
-```
+The plugin automatically uses MediaSession to intercept hardware volume buttons.
 
 ## What's Fixed
 
 | Issue | v1.x | v2.0.0 |
 |-------|------|--------|
-| Hardware buttons work | ❌ Didn't work | ✅ Work correctly |
+| Hardware buttons work | ❌ Didn't work | ✅ Work automatically |
 | Continuous button detection | ❌ Stops after 1 press | ✅ Works continuously |
 | suppressVolumeIndicator | ❌ Broken | ✅ Works |
 | disableSystemVolumeHandler | ❌ Broken | ✅ Works |
-| Android implementation | ❌ WebView.setOnKeyListener | ✅ Activity.dispatchKeyEvent |
+| MainActivity modification | ❌ Not applicable | ✅ NOT REQUIRED! |
+| Android implementation | ❌ WebView.setOnKeyListener | ✅ MediaSession + VolumeProvider |
 | iOS implementation | ❌ Uses resolve() | ✅ Uses notifyListeners() |
 
 ## Documentation Files
 
-- **README.md** - Installation with MainActivity integration instructions
-- **MAINACTIVITY_INTEGRATION.md** - Complete integration guide with all imports
-- **HARDWARE_BUTTONS_FIX.md** - Explanation of the fix and troubleshooting
+- **README.md** - Simple installation guide (no MainActivity needed!)
+- **MEDIASESSION_APPROACH.md** - Technical explanation of MediaSession approach
+- **MAINACTIVITY_INTEGRATION.md** - Optional advanced integration (for special cases)
 - **CHANGELOG.md** - Version 2.0.0 breaking changes and migration guide
 - **PUBLISH_TO_NPM.md** - This file
 
 ## Important Notes
 
-- This is a **BREAKING CHANGE** - users must update their code AND MainActivity
+- This is a **BREAKING CHANGE** - users must update their code (event listener pattern)
+- **No MainActivity modification required** - plugin handles everything automatically!
 - Hardware buttons only (volume slider dragging not supported - platform limitation)
+- Android 5.0+ required for MediaSession support
 - See README.md for complete migration guide
 - See CHANGELOG.md for detailed change list
 
@@ -138,6 +125,6 @@ override fun dispatchKeyEvent(event: KeyEvent): Boolean {
 Ready to publish! 🚀
 
 After publishing, announce the update and emphasize:
-1. Hardware volume buttons now work!
-2. MainActivity integration required (Android)
-3. Event listener pattern required (both platforms)
+1. **Hardware volume buttons now work automatically!**
+2. **No MainActivity changes needed** - just install and use!
+3. Event listener pattern required (breaking API change)

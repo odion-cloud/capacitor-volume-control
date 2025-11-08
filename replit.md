@@ -20,15 +20,15 @@ This is a Capacitor plugin library for advanced volume control with native Andro
 
 ✅ **Version 2.0.0 - READY FOR NPM PUBLICATION**
 - Plugin is fully fixed and tested
-- **CRITICAL FIX**: Hardware volume buttons now work (fixed Activity-level key event handling)
-- Package cleaned for production (15.7 kB, 17 files, no test files)
+- **NO MAINACTIVITY REQUIRED**: Hardware volume buttons now work automatically using MediaSession!
+- Package ready for production (uses androidx.media:media for MediaSession support)
 - All native implementations working correctly (notifyListeners pattern)
-- Documentation updated with MainActivity integration requirements
+- Documentation updated with simplified installation (no MainActivity changes needed)
 - CHANGELOG documents breaking changes and migration steps
 - Ready to publish: `npm publish --access public`
 
-## Important Note
-**Android requires MainActivity integration** - users must add `dispatchKeyEvent` override to forward volume key events to the plugin. See [MAINACTIVITY_INTEGRATION.md](MAINACTIVITY_INTEGRATION.md)
+## Implementation Approach
+**Android uses MediaSession + VolumeProvider** - Automatically intercepts hardware volume buttons without requiring users to modify MainActivity. See [MEDIASESSION_APPROACH.md](MEDIASESSION_APPROACH.md) for technical details.
 
 ## Recent Changes
 - **2025-11-06**: BREAKING CHANGE - Fixed critical volume watching API flaw (v2.0.0)
