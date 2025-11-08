@@ -57,6 +57,16 @@ jspm_packages/
 # Yarn Integrity file
 .yarn-integrity
 
+# Package artifacts and temporary files
+*.tar.gz
+*.zip
+*.tmp
+*.temp
+*.swp
+*.swo
+.rm
+*.rm
+
 # Android
 android/build/
 android/.gradle/
