@@ -2,6 +2,8 @@
 
 A Capacitor plugin for advanced volume control with native Android and iOS implementations. This plugin provides comprehensive volume management capabilities including volume level control, volume change monitoring, and platform-specific features.
 
+**Published on npm** · [@odion-cloud/capacitor-volume-control](https://www.npmjs.com/package/@odion-cloud/capacitor-volume-control) · **Supports Capacitor 5, 6, 7, and 8**
+
 ## Features
 
 - 🔊 **Volume Level Control**: Get and set volume levels for different audio streams
@@ -479,6 +481,11 @@ npx cap run ios
 ```
 
 ## Platform Support
+
+### 📦 Capacitor & npm
+
+- **Capacitor**: Compatible with Capacitor **5**, **6**, **7**, and **8**.
+- **npm**: Package is published to [npm](https://www.npmjs.com/package/@odion-cloud/capacitor-volume-control); releases are pushed to GitHub and then published to npm.
 
 ### 📱 Supported Devices
 
