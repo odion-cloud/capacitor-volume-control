@@ -1,3 +1,5 @@
+import type { PluginListenerHandle } from '@capacitor/core';
+
 export enum VolumeType {
   VOICE_CALL = 'voice_call',
   SYSTEM = 'system',
@@ -53,6 +55,23 @@ export interface VolumeButtonPressedEvent {
    * Direction of volume button press
    */
   direction: 'up' | 'down';
+
+  /**
+   * Current volume level as a float between 0.0 and 1.0 (best-effort).
+   */
+  value?: number;
+}
+
+export interface VolumeLevelChangedEvent extends VolumeResult {
+  /**
+   * Direction inferred from the change (best-effort).
+   */
+  direction?: 'up' | 'down';
+
+  /**
+   * The volume stream/type (Android only; iOS is global output volume).
+   */
+  type?: VolumeType;
 }
 
 export interface WatchStatusResult {
@@ -118,7 +137,16 @@ export interface VolumeControlPlugin {
   addListener(
     eventName: 'volumeButtonPressed',
     listenerFunc: (event: VolumeButtonPressedEvent) => void,
-  ): Promise<PluginListenerHandle> & PluginListenerHandle;
+  ): Promise<PluginListenerHandle>;
+
+  /**
+   * Listen to volume level changes (hardware buttons + system UI + setVolumeLevel()).
+   * @since 2.0.2
+   */
+  addListener(
+    eventName: 'volumeLevelChanged',
+    listenerFunc: (event: VolumeLevelChangedEvent) => void,
+  ): Promise<PluginListenerHandle>;
 
   /**
    * Remove all listeners for this plugin
@@ -126,8 +154,4 @@ export interface VolumeControlPlugin {
    * @since 1.0.0
    */
   removeAllListeners(): Promise<void>;
-}
-
-export interface PluginListenerHandle {
-  remove: () => Promise<void>;
 }

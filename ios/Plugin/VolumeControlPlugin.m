@@ -9,4 +9,5 @@ CAP_PLUGIN(VolumeControlPlugin, "VolumeControl",
            CAP_PLUGIN_METHOD(watchVolume, CAPPluginReturnPromise);
            CAP_PLUGIN_METHOD(clearWatch, CAPPluginReturnPromise);
            CAP_PLUGIN_METHOD(isWatching, CAPPluginReturnPromise);
+           CAP_PLUGIN_METHOD(removeAllListeners, CAPPluginReturnPromise);
 )

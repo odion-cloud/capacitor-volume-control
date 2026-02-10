@@ -349,20 +349,20 @@
                         <li>Android 6.0+ (API 23+)</li>
                         <li>All phone manufacturers</li>
                         <li>Tablets and foldables</li>
-                        <li>Internal & SD card storage</li>
-                        <li>All media types supported</li>
+                        <li>Volume get/set and hardware button detection</li>
+                        <li>No MainActivity integration required (v2.0+)</li>
                     </ul>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">🍎</div>
                     <h4>iOS Devices</h4>
-                    <p><strong>Coming Soon</strong></p>
+                    <p><strong>Full Support</strong></p>
                     <ul>
-                        <li>iPhone iOS 12+</li>
+                        <li>iPhone iOS 13+</li>
                         <li>iPad iPadOS 13+</li>
-                        <li>Photos & Videos access</li>
-                        <li>Music library integration</li>
-                        <li>Expected Q2 2025</li>
+                        <li>Volume get/set and hardware buttons</li>
+                        <li>Works out of the box, no extra setup</li>
+                        <li>AVAudioSession & MPVolumeView</li>
                     </ul>
                 </div>
                 <div class="feature-card">
@@ -371,16 +371,16 @@
                     <p><strong>Development Only</strong></p>
                     <ul>
                         <li>Chrome, Firefox, Safari</li>
-                        <li>Mock data for testing</li>
-                        <li>No real file access</li>
+                        <li>Mock implementation for testing</li>
+                        <li>No real volume control</li>
                         <li>Development fallback</li>
                         <li>Not for production</li>
                     </ul>
                 </div>
             </div>
 
-            <div class="alert alert-success">
-                <strong>📱 iOS Support Coming Soon!</strong> We're actively working on iOS support with full Photos framework integration.
+            <div class="alert alert-info">
+                <strong>🔊 Capacitor Version:</strong> This plugin supports <strong>Capacitor 5, 6, 7, and 8</strong>. Install in any of these projects with <code>npm install @odion-cloud/capacitor-volume-control</code> and <code>npx cap sync</code>.
             </div>
 
             <h3>🏆 Android Version Compatibility</h3>
@@ -398,31 +398,31 @@
                         <td>Android 14+</td>
                         <td>API 34+</td>
                         <td><span class="badge">✅ Full</span></td>
-                        <td>All features, visual media permissions</td>
+                        <td>All volume features, MediaSession button detection</td>
                     </tr>
                     <tr>
                         <td>Android 13</td>
                         <td>API 33</td>
                         <td><span class="badge">✅ Full</span></td>
-                        <td>Granular media permissions</td>
+                        <td>Full volume control & button watching</td>
                     </tr>
                     <tr>
                         <td>Android 10-12</td>
                         <td>API 29-32</td>
                         <td><span class="badge">✅ Full</span></td>
-                        <td>Scoped storage, external volumes</td>
+                        <td>AudioManager, volume streams, button detection</td>
                     </tr>
                     <tr>
                         <td>Android 6-9</td>
                         <td>API 23-28</td>
                         <td><span class="badge">✅ Full</span></td>
-                        <td>Runtime permissions, SD card access</td>
+                        <td>Runtime permissions, all volume types</td>
                     </tr>
                     <tr>
                         <td>Android 5</td>
                         <td>API 21-22</td>
                         <td><span class="badge">⚠️ Basic</span></td>
-                        <td>Limited external storage access</td>
+                        <td>Basic volume control, limited button support</td>
                     </tr>
                 </tbody>
             </table>
@@ -463,7 +463,7 @@
                     <li>Upgrade to better development hardware</li>
                     <li>Improve my workspace and productivity</li>
                     <li>Dedicate more time to open source projects</li>
-                    <li>Add iOS support and new features faster</li>
+                    <li>Add new features and Capacitor 8 support faster</li>
                     <li>Provide better documentation and examples</li>
                 </ul>
             </div>
@@ -518,7 +518,7 @@
                 <div class="feature-card">
                     <div class="feature-icon">👂</div>
                     <h4>Volume Change Monitoring</h4>
-                    <p>Watch for volume changes in real-time with hardware button detection and callbacks.</p>
+                    <p>Watch for volume changes in real-time using <code>addListener('volumeButtonPressed', callback)</code> then <code>watchVolume(options)</code>. No callback on <code>watchVolume()</code> (v2.0+).</p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">📱</div>
@@ -540,6 +540,10 @@
                  <strong>🔊 Real-time Volume Control!</strong> Monitor volume changes and control audio levels with hardware button support.
              </div>
 
+            <div class="alert alert-warning">
+                <strong>⚠️ Breaking change in v2.0:</strong> <code>watchVolume()</code> no longer accepts a callback. Use <code>addListener('volumeButtonPressed', callback)</code> before calling <code>watchVolume(options)</code>. See migration in CHANGELOG.
+            </div>
+
             <h3>Quick Example</h3>
             <div class="code-block">
                 <button class="copy-btn" onclick="copyCode(this)">Copy</button>
@@ -549,12 +553,11 @@ console.log('Current volume:', currentVolume.value);
 
 await VolumeControl.setVolumeLevel({ value: 0.5 });
 
-// Watch for volume changes
-await VolumeControl.watchVolume({
-  suppressVolumeIndicator: true
-}, (event) => {
-  console.log('Volume changed:', event.direction);
-});</pre>
+// Watch for hardware volume button presses (v2.0+ pattern)
+await VolumeControl.addListener('volumeButtonPressed', (event) => {
+  console.log('Volume button:', event.direction);
+});
+await VolumeControl.watchVolume({ suppressVolumeIndicator: true });</pre>
             </div>
         </div>
 
@@ -571,9 +574,13 @@ npx cap sync</pre>
                 </div>
             </div>
 
+            <div class="alert alert-success">
+                <strong>No MainActivity changes required!</strong> As of v2.0, volume button watching uses <code>@capacitor-community/volume-buttons</code> (MediaSession). Buttons work automatically on Android and iOS.
+            </div>
+
             <div class="step">
                 <h3><span class="step-number">2</span>Android Setup (Optional)</h3>
-                <p>For advanced volume control features, add to <span class="highlight">android/app/src/main/AndroidManifest.xml</span>:</p>
+                <p>For volume control features, add to <span class="highlight">android/app/src/main/AndroidManifest.xml</span>:</p>
                 <div class="code-block">
                     <button class="copy-btn" onclick="copyCode(this)">Copy</button>
                     <pre>&lt;!-- For volume control features --&gt;
@@ -632,27 +639,26 @@ await VolumeControl.setVolumeLevel({
 });</pre>
             </div>
 
-            <h3>4. Watch Volume Changes</h3>
+            <h3>4. Watch Volume Button Presses (v2.0+)</h3>
+            <p><code>watchVolume()</code> no longer accepts a callback. Add a listener first, then start watching.</p>
             <div class="code-block">
                 <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-                <pre>// Method 1: Using watchVolume with callback
+                <pre>// 1. Add listener for hardware volume button presses
+const listener = await VolumeControl.addListener('volumeButtonPressed', (event) => {
+  console.log('Volume button:', event.direction);  // 'up' | 'down'
+  if (event.value !== undefined) console.log('Level:', event.value);
+});
+
+// 2. Start watching (no callback parameter)
 await VolumeControl.watchVolume({
   suppressVolumeIndicator: true,    // Android: hide volume UI
   disableSystemVolumeHandler: true  // iOS: disable system UI
-}, (event) => {
-  console.log('Volume changed:', event.direction);
 });
 
-// Method 2: Using event listeners (recommended for frameworks)
-const listener = await VolumeControl.addListener('volumeChanged', (event) => {
-  console.log('Volume changed:', event.direction);
+// Optional: also listen for volume level changes (e.g. from setVolumeLevel)
+await VolumeControl.addListener('volumeLevelChanged', (event) => {
+  console.log('Level changed:', event.value, event.direction);
 });
-
-// Start watching (required for both methods)
-await VolumeControl.watchVolume({
-  disableSystemVolumeHandler: true,
-  suppressVolumeIndicator: true
-}, () => {}); // Empty callback if using event listeners
 
 // Stop watching
 await VolumeControl.clearWatch();
@@ -697,21 +703,20 @@ console.log('Is watching:', isWatching.value);</pre>
   async startVolumeWatching() {
     if (this.isWatching) return;
     
-    await VolumeControl.watchVolume({
-      suppressVolumeIndicator: true
-    }, (event) => {
+    await VolumeControl.addListener('volumeButtonPressed', (event) => {
       this.handleVolumeChange(event);
     });
+    await VolumeControl.watchVolume({ suppressVolumeIndicator: true });
     
     this.isWatching = true;
   }
 
   handleVolumeChange(event) {
-    this.currentVolume = event.level;
-    console.log(`Volume ${event.direction}: ${event.level}`);
+    if (event.value !== undefined) this.currentVolume = event.value;
+    console.log(`Volume ${event.direction}: ${event.value ?? this.currentVolume}`);
     
     // Update UI or trigger other actions
-    this.updateVolumeDisplay(event.level);
+    this.updateVolumeDisplay(event.value ?? this.currentVolume);
   }
 
   async setVolume(level) {
@@ -791,21 +796,18 @@ console.log('Is watching:', isWatching.value);</pre>
     const volume = await VolumeControl.getVolumeLevel();
     this.previousVolume = volume.value;
     
-    // Start watching for volume changes
-    await VolumeControl.watchVolume({
-      disableSystemVolumeHandler: true
-    }, (event) => {
+    // Start watching for volume button presses
+    await VolumeControl.addListener('volumeButtonPressed', (event) => {
       this.handleGameVolumeChange(event);
     });
+    await VolumeControl.watchVolume({ disableSystemVolumeHandler: true });
   }
 
   handleGameVolumeChange(event) {
     if (this.isMuted) {
-      // If muted, restore previous volume
       VolumeControl.setVolumeLevel({ value: this.previousVolume });
-    } else {
-      // Update previous volume
-      this.previousVolume = event.level;
+    } else if (event.value !== undefined) {
+      this.previousVolume = event.value;
     }
   }
 
@@ -855,16 +857,13 @@ export function useVolumeControl() {
     if (isWatching) return;
 
     try {
-      // Add event listener first
-      await VolumeControl.addListener('volumeChanged', (event) => {
-        setVolume(event.level);
+      await VolumeControl.addListener('volumeButtonPressed', (event) => {
+        if (event.value !== undefined) setVolume(event.value);
       });
-      
-      // Start watching with empty callback since we're using event listeners
       await VolumeControl.watchVolume({
         disableSystemVolumeHandler: true,
         suppressVolumeIndicator: true
-      }, () => {});
+      });
       
       setIsWatching(true);
     } catch (error) {
@@ -938,17 +937,14 @@ export function useVolumeControl() {
     if (isWatching.value) return;
 
     try {
-      // Add event listener
-      volumeListener = await VolumeControl.addListener('volumeChanged', (event) => {
-        volume.value = event.level;
-        console.log('Volume changed:', event.direction);
+      volumeListener = await VolumeControl.addListener('volumeButtonPressed', (event) => {
+        if (event.value !== undefined) volume.value = event.value;
+        console.log('Volume button:', event.direction);
       });
-
-      // Start watching
       await VolumeControl.watchVolume({
         disableSystemVolumeHandler: true,
         suppressVolumeIndicator: true
-      }, () => {});
+      });
 
       isWatching.value = true;
     } catch (error) {
@@ -1034,17 +1030,14 @@ export class VolumeService {
     if (this.isWatchingSubject.value) return;
 
     try {
-      // Add event listener
-      this.volumeListener = await VolumeControl.addListener('volumeChanged', (event) => {
-        this.volumeSubject.next(event.level);
-        console.log('Volume changed:', event.direction);
+      this.volumeListener = await VolumeControl.addListener('volumeButtonPressed', (event) => {
+        if (event.value !== undefined) this.volumeSubject.next(event.value);
+        console.log('Volume button:', event.direction);
       });
-
-      // Start watching
       await VolumeControl.watchVolume({
         disableSystemVolumeHandler: true,
         suppressVolumeIndicator: true
-      }, () => {});
+      });
 
       this.isWatchingSubject.next(true);
     } catch (error) {
@@ -1121,23 +1114,27 @@ export class VolumeService {
             </div>
 
             <div class="method-card">
-                <div class="method-name">watchVolume(options, callback)</div>
-                <p>Start watching for volume changes with hardware button detection.</p>
+                <div class="method-name">watchVolume(options)</div>
+                <p>Start watching for hardware volume button presses. Does <strong>not</strong> accept a callback (v2.0+). Use <code>addListener('volumeButtonPressed', callback)</code> before calling this.</p>
                 <div class="code-block">
                     <pre>watchVolume({
   disableSystemVolumeHandler?: boolean;  // iOS: disable system UI
   suppressVolumeIndicator?: boolean;     // Android: hide volume UI
-}, callback: VolumeChangeCallback): Promise&lt;void&gt;
-
-// Callback receives: { direction: 'up' | 'down' }</pre>
+}): Promise&lt;void&gt;</pre>
                 </div>
             </div>
 
             <div class="method-card">
                 <div class="method-name">addListener(eventName, callback)</div>
-                <p>Add listener for volume change events (recommended for frameworks).</p>
+                <p>Add listener for volume events. Call this <strong>before</strong> <code>watchVolume()</code>.</p>
                 <div class="code-block">
-                    <pre>addListener(eventName: 'volumeChanged', callback: VolumeChangeCallback): Promise&lt;PluginListenerHandle&gt;
+                    <pre>// Hardware volume button presses
+addListener('volumeButtonPressed', (event: VolumeButtonPressedEvent) => void): Promise&lt;PluginListenerHandle&gt;
+// event: { direction: 'up' | 'down', value?: number }
+
+// Volume level changes (hardware + setVolumeLevel)
+addListener('volumeLevelChanged', (event: VolumeLevelChangedEvent) => void): Promise&lt;PluginListenerHandle&gt;
+// event: { value: number, direction?: 'up' | 'down', type?: VolumeType }
 
 // Returns: PluginListenerHandle with remove() method</pre>
                 </div>
@@ -1251,10 +1248,10 @@ export class VolumeService {
                 <div class="feature-card">
                     <h4>Event Handling</h4>
                     <ul>
-                        <li><code>direction</code> - 'up' or 'down'</li>
-                        <li><code>level</code> - New volume level</li>
-                        <li>Real-time callbacks</li>
-                        <li>Multiple listeners support</li>
+                        <li><code>volumeButtonPressed</code> - direction, value?</li>
+                        <li><code>volumeLevelChanged</code> - value, direction?, type?</li>
+                        <li>Add listener before <code>watchVolume()</code></li>
+                        <li>Multiple listeners supported</li>
                     </ul>
                 </div>
             </div>
@@ -1286,12 +1283,12 @@ return () => {
                     </div>
                 </div>
                 <div class="feature-card">
-                    <h4>🎯 Use Event Listeners</h4>
-                    <p>Prefer <code>addListener()</code> over callback in <code>watchVolume()</code> for better framework integration.</p>
+                    <h4>🎯 Use Event Listeners (v2.0+)</h4>
+                    <p><code>watchVolume()</code> no longer accepts a callback. Always use <code>addListener()</code> first, then <code>watchVolume()</code>.</p>
                     <div class="code-block">
-                        <pre>// Recommended for frameworks
-await VolumeControl.addListener('volumeChanged', callback);
-await VolumeControl.watchVolume({}, () => {});</pre>
+                        <pre>// Required pattern in v2.0+
+await VolumeControl.addListener('volumeButtonPressed', callback);
+await VolumeControl.watchVolume({});</pre>
                     </div>
                 </div>
                 <div class="feature-card">
@@ -1313,7 +1310,8 @@ await VolumeControl.watchVolume({}, () => {});</pre>
                     <div class="code-block">
                         <pre>const status = await VolumeControl.isWatching();
 if (!status.value) {
-  await VolumeControl.watchVolume({}, callback);
+  await VolumeControl.addListener('volumeButtonPressed', callback);
+  await VolumeControl.watchVolume({});
 }</pre>
                     </div>
                 </div>

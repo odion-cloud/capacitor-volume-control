@@ -26,7 +26,8 @@ public class VolumeControlPlugin: CAPPlugin {
     
     @objc func getVolumeLevel(_ call: CAPPluginCall) {
         do {
-            // Always get fresh volume from audio session and round to 2 decimals
+            // Ensure session is active so outputVolume is up-to-date
+            try AVAudioSession.sharedInstance().setActive(true, options: [])
             let volume = AVAudioSession.sharedInstance().outputVolume
             let roundedVolume = round(volume * 100) / 100
             call.resolve(["value": roundedVolume])
@@ -51,6 +52,13 @@ public class VolumeControlPlugin: CAPPlugin {
             // Return the rounded value after setting
             let roundedValue = round(value * 100) / 100
             call.resolve(["value": roundedValue])
+
+            // Emit an instant change event (KVO will also fire, but this makes it immediate)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                let v = AVAudioSession.sharedInstance().outputVolume
+                let r = round(v * 100) / 100
+                self.notifyListeners("volumeLevelChanged", data: ["value": r])
+            }
         } catch {
             call.reject("Failed to set volume level: \(error.localizedDescription)")
         }
@@ -69,7 +77,18 @@ public class VolumeControlPlugin: CAPPlugin {
         let handlerBlock: VolumeButtonBlock = { direction in
             var jsObject = JSObject()
             jsObject["direction"] = direction
+            let volume = AVAudioSession.sharedInstance().outputVolume
+            let roundedVolume = round(volume * 100) / 100
+            jsObject["value"] = roundedVolume
+
+            // Back-compat event
             self.notifyListeners("volumeButtonPressed", data: jsObject)
+
+            // New: always emit current volume instantly
+            var changed = JSObject()
+            changed["value"] = roundedVolume
+            changed["direction"] = direction
+            self.notifyListeners("volumeLevelChanged", data: changed)
         }
         volumeHandler.handlerBlock = handlerBlock
         
@@ -84,6 +103,10 @@ public class VolumeControlPlugin: CAPPlugin {
         
         volumeHandler.stopHandler()
         call.resolve()
+    }
+
+    @objc override public func removeAllListeners(_ call: CAPPluginCall) {
+        super.removeAllListeners(call)
     }
     
     // MARK: - Private Methods

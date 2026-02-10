@@ -8,7 +8,8 @@ import type {
   VolumeResult, 
   WatchVolumeOptions, 
   WatchStatusResult,
-  VolumeButtonPressedEvent
+  VolumeButtonPressedEvent,
+  VolumeLevelChangedEvent
 } from './definitions';
 
 export class VolumeControlWeb extends WebPlugin implements VolumeControlPlugin {
@@ -38,6 +39,9 @@ export class VolumeControlWeb extends WebPlugin implements VolumeControlPlugin {
     // This would typically show a warning or throw an error
     console.warn('Setting system volume is not supported in web browsers');
     
+    // Emit best-effort change event for web testing
+    const evt: VolumeLevelChangedEvent = { value: this.mockVolume, direction: undefined };
+    this.notifyListeners('volumeLevelChanged', evt);
     return { value: options.value };
   }
 
@@ -58,7 +62,9 @@ export class VolumeControlWeb extends WebPlugin implements VolumeControlPlugin {
     if (process.env.NODE_ENV === 'development') {
       setTimeout(() => {
         if (this.isWatchingVolume) {
-          this.notifyListeners('volumeButtonPressed', { direction: 'up' });
+          this.mockVolume = Math.min(1, this.mockVolume + 0.05);
+          this.notifyListeners('volumeButtonPressed', { direction: 'up', value: this.mockVolume } as any);
+          this.notifyListeners('volumeLevelChanged', { value: this.mockVolume, direction: 'up' } as any);
         }
       }, 3000);
     }
@@ -81,7 +87,12 @@ export class VolumeControlWeb extends WebPlugin implements VolumeControlPlugin {
   addListener(
     eventName: 'volumeButtonPressed',
     listenerFunc: (event: VolumeButtonPressedEvent) => void,
-  ): Promise<PluginListenerHandle> & PluginListenerHandle {
+  ): Promise<PluginListenerHandle> & PluginListenerHandle;
+  addListener(
+    eventName: 'volumeLevelChanged',
+    listenerFunc: (event: VolumeLevelChangedEvent) => void,
+  ): Promise<PluginListenerHandle> & PluginListenerHandle;
+  addListener(eventName: string, listenerFunc: (event: any) => void): Promise<PluginListenerHandle> & PluginListenerHandle {
     return super.addListener(eventName, listenerFunc);
   }
 
